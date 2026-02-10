@@ -85,6 +85,21 @@ Grep: Access-Control-Allow-Origin.*\*  -- CORS wildcard
 Grep: CORS.*\*
 ```
 
+### React / Next.js / Supabase patronen
+
+Bij React/Next.js/Supabase projecten, voeg deze extra Grep patronen toe:
+
+```
+Grep: dangerouslySetInnerHTML       -- React unsafe HTML injection
+Grep: href.*javascript:             -- JavaScript protocol in JSX links
+Grep: service_role                  -- Supabase service_role key exposure
+Grep: NEXT_PUBLIC_.*SERVICE\|NEXT_PUBLIC_.*SECRET\|NEXT_PUBLIC_.*KEY.*service  -- Secrets in publieke env vars
+Grep: \.rpc\(                       -- Supabase RPC calls (controleer input validatie)
+Grep: auth\.admin                   -- Supabase admin auth (moet server-side zijn)
+Grep: \.from\(.*\)\.\(insert\|update\|delete\|upsert\)  -- Supabase mutaties (controleer RLS)
+Grep: createClient.*supabase.*['"]ey  -- Hardcoded Supabase keys
+```
+
 Analyseer gevonden patronen in context (lees omringende code) om false positives te filteren.
 
 ## Stap 5: Resultaten consolideren
@@ -193,6 +208,7 @@ Het audit rapport dat de remediation skill consumeert:
 Beschikbare regelsets in `assets/semgrep_rules/`:
 - `python_rules.yaml` - Python-specifiek (SQL injection, eval, unsafe YAML, weak random)
 - `javascript_rules.yaml` - JS/TS (XSS, command injection, prototype pollution)
+- `react_nextjs_rules.yaml` - React/Next.js/Supabase (dangerouslySetInnerHTML, service_role exposure, RLS, hardcoded keys)
 - `java_rules.yaml` - Java (SQL injection, XXE, insecure deserialization)
 - `go_rules.yaml` - Go (SQL injection, insecure TLS, SSRF)
 

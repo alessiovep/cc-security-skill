@@ -133,6 +133,44 @@ Fix: verplaats naar environment variabelen, informeer gebruiker over rotatie
 Zoek: unsafe load/parse van untrusted data
 Fix: gebruik safe alternatieven (safe_load, JSON, etc.)
 
+### React dangerouslySetInnerHTML
+Zoek: `dangerouslySetInnerHTML={{__html: userInput}}`
+Fix: sanitize met DOMPurify voor het toewijzen
+```jsx
+// Voor:  <div dangerouslySetInnerHTML={{__html: userContent}} />
+// Na:    import DOMPurify from 'dompurify';
+//        <div dangerouslySetInnerHTML={{__html: DOMPurify.sanitize(userContent)}} />
+```
+
+### Supabase service_role misuse
+Zoek: `createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY)` in client-side code
+Fix: verplaats naar server-side (API route, Server Component, of server action)
+```typescript
+// Voor (client-side):  const supabase = createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY)
+// Na (API route):      import { createClient } from '@supabase/supabase-js'
+//                      const supabaseAdmin = createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+// Client-side alleen:  const supabase = createClient(url, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+```
+
+### NEXT_PUBLIC_ secrets
+Zoek: `process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY` of andere secrets met `NEXT_PUBLIC_` prefix
+Fix: verwijder `NEXT_PUBLIC_` prefix en verplaats gebruik naar server-only code
+```
+# Voor (.env):   NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY=eyJ...
+# Na (.env):     SUPABASE_SERVICE_ROLE_KEY=eyJ...
+# Gebruik alleen in API routes, getServerSideProps, of Server Components
+```
+
+### Supabase RLS ontbreekt
+Zoek: `.from('table').insert()` / `.update()` / `.delete()` zonder RLS
+Fix: wijs de gebruiker op het configureren van RLS in het Supabase dashboard
+```
+-- In Supabase SQL Editor:
+ALTER TABLE public.table_name ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can only access own data" ON public.table_name
+  FOR ALL USING (auth.uid() = user_id);
+```
+
 **Belangrijk**: Lees altijd de omringende code voor context. Toon de voorgestelde wijziging aan de gebruiker voor bevestiging bij niet-triviale changes.
 
 ## Stap 6: Verificatie

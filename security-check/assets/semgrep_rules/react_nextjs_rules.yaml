@@ -1,0 +1,313 @@
+rules:
+  # ══════════════════════════════════════════════
+  # REACT RULES
+  # ══════════════════════════════════════════════
+
+  # ──────────────────────────────────────────────
+  # 1. react-dangerouslysetinnerhtml: Unsafe HTML injection via React escape hatch
+  # ──────────────────────────────────────────────
+  - id: react-dangerouslysetinnerhtml
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      dangerouslySetInnerHTML bypasses React's built-in XSS protection and
+      injects raw HTML into the DOM. If the __html value contains unsanitized
+      user input, an attacker can execute arbitrary JavaScript. Sanitize the
+      HTML with DOMPurify before passing it to dangerouslySetInnerHTML, or
+      use React's normal JSX rendering which auto-escapes content.
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-79: Improper Neutralization of Input During Web Page Generation"
+      confidence: HIGH
+    pattern-either:
+      - pattern: |
+          <$EL dangerouslySetInnerHTML={...} />
+      - pattern: |
+          <$EL dangerouslySetInnerHTML={...}>...</$EL>
+      - pattern: |
+          dangerouslySetInnerHTML={{__html: $VAL}}
+
+  # ──────────────────────────────────────────────
+  # 2. react-javascript-url: JavaScript protocol in href attributes
+  # ──────────────────────────────────────────────
+  - id: react-javascript-url
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      JavaScript protocol URL detected in JSX href attribute. When user input
+      controls the href value, an attacker can inject 'javascript:' URLs to
+      execute arbitrary code in the user's browser. Validate URLs against an
+      allowlist of safe protocols (http:, https:, mailto:) and reject any
+      URL starting with 'javascript:'.
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-79: Improper Neutralization of Input During Web Page Generation"
+      confidence: HIGH
+    pattern-either:
+      - pattern: |
+          <a href={"javascript:..."} />
+      - pattern: |
+          <a href={"javascript:..."}>...</a>
+      - pattern: |
+          <a href="javascript:...">...</a>
+      - pattern: |
+          <a href={$URL} />
+        metavariable-pattern:
+          metavariable: $URL
+          pattern: |
+            `javascript:...`
+
+  # ──────────────────────────────────────────────
+  # 3. react-target-blank: target="_blank" without rel="noopener noreferrer"
+  # ──────────────────────────────────────────────
+  - id: react-target-blank
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Link with target="_blank" detected without rel="noopener noreferrer".
+      The opened page can access window.opener and potentially redirect the
+      original page to a phishing site (reverse tabnabbing). Add
+      rel="noopener noreferrer" to all external links with target="_blank".
+    metadata:
+      category: security
+      owasp: "A05:2021 - Security Misconfiguration"
+      cwe: "CWE-1022: Use of Web Link to Untrusted Target with window.opener Access"
+      confidence: MEDIUM
+    patterns:
+      - pattern: |
+          <a target="_blank" ...>...</a>
+      - pattern-not: |
+          <a target="_blank" rel="noopener noreferrer" ...>...</a>
+      - pattern-not: |
+          <a target="_blank" rel="noreferrer noopener" ...>...</a>
+      - pattern-not: |
+          <a target="_blank" rel="noopener" ...>...</a>
+      - pattern-not: |
+          <a target="_blank" rel="noreferrer" ...>...</a>
+
+  # ══════════════════════════════════════════════
+  # NEXT.JS RULES
+  # ══════════════════════════════════════════════
+
+  # ──────────────────────────────────────────────
+  # 4. nextjs-public-env-secret: Supabase service_role key in NEXT_PUBLIC_ env vars
+  # ──────────────────────────────────────────────
+  - id: nextjs-public-env-secret
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Supabase service_role key or secret is exposed via a NEXT_PUBLIC_
+      environment variable. NEXT_PUBLIC_ variables are inlined into the
+      client-side JavaScript bundle and visible to all users. Move the
+      service_role key to a server-only environment variable (without the
+      NEXT_PUBLIC_ prefix) and only access it in API routes, Server
+      Components, or getServerSideProps.
+    metadata:
+      category: security
+      owasp: "A02:2021 - Cryptographic Failures"
+      cwe: "CWE-200: Exposure of Sensitive Information to an Unauthorized Actor"
+      confidence: HIGH
+    pattern-either:
+      - pattern: process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+      - pattern: process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY
+      - pattern: process.env.NEXT_PUBLIC_SERVICE_ROLE_KEY
+
+  # ──────────────────────────────────────────────
+  # 5. nextjs-api-no-auth: API routes without authentication check
+  # ──────────────────────────────────────────────
+  - id: nextjs-api-no-auth
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Next.js API route handler detected without an apparent authentication
+      or authorization check. API routes are publicly accessible by default.
+      Ensure you verify the user's session or token (e.g., via
+      supabase.auth.getUser(), getServerSession(), or middleware) before
+      processing the request.
+    metadata:
+      category: security
+      owasp: "A01:2021 - Broken Access Control"
+      cwe: "CWE-862: Missing Authorization"
+      confidence: LOW
+    patterns:
+      - pattern: |
+          export default function $HANDLER($REQ, $RES) {
+            ...
+          }
+      - pattern-not: |
+          export default function $HANDLER($REQ, $RES) {
+            ...
+            $AUTH.getUser(...)
+            ...
+          }
+      - pattern-not: |
+          export default function $HANDLER($REQ, $RES) {
+            ...
+            $AUTH.getSession(...)
+            ...
+          }
+      - pattern-not: |
+          export default function $HANDLER($REQ, $RES) {
+            ...
+            getServerSession(...)
+            ...
+          }
+
+  # ──────────────────────────────────────────────
+  # 6. nextjs-unsanitized-query-params: Unsanitized query params in getServerSideProps
+  # ──────────────────────────────────────────────
+  - id: nextjs-unsanitized-query-params
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Query parameters from getServerSideProps context are passed directly
+      to a database query or rendered without sanitization. User-controlled
+      query parameters should be validated and sanitized before use in
+      database operations or HTML rendering to prevent injection attacks.
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-20: Improper Input Validation"
+      confidence: MEDIUM
+    patterns:
+      - pattern-inside: |
+          export async function getServerSideProps($CTX) {
+            ...
+          }
+      - pattern-either:
+          - pattern: $CTX.query.$PARAM
+          - pattern: |
+              const { $PARAM, ... } = $CTX.query;
+
+  # ══════════════════════════════════════════════
+  # SUPABASE RULES
+  # ══════════════════════════════════════════════
+
+  # ──────────────────────────────────────────────
+  # 7. supabase-service-role-client: Service role key used in client-side code
+  # ──────────────────────────────────────────────
+  - id: supabase-service-role-client
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Supabase client is created with the service_role key in code that may
+      run on the client side. The service_role key bypasses all Row Level
+      Security (RLS) policies and grants full database access. Only use
+      the service_role key in server-side code (API routes, server actions,
+      background jobs). Use the anon key for client-side Supabase clients.
+    metadata:
+      category: security
+      owasp: "A01:2021 - Broken Access Control"
+      cwe: "CWE-798: Use of Hard-coded Credentials"
+      confidence: HIGH
+    pattern-either:
+      - pattern: createClient($URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+      - pattern: createClient($URL, process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY)
+      - pattern: createClient($URL, $SERVICE_KEY, ...)
+        metavariable-pattern:
+          metavariable: $SERVICE_KEY
+          pattern: |
+            "eyJhbGciOi..."
+
+  # ──────────────────────────────────────────────
+  # 8. supabase-rpc-injection: Supabase RPC calls with unsanitized user input
+  # ──────────────────────────────────────────────
+  - id: supabase-rpc-injection
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Supabase .rpc() call detected with user input passed directly as
+      parameters. While Supabase RPC uses parameterized queries internally,
+      the underlying PostgreSQL function may perform dynamic SQL or have
+      insufficient input validation. Validate and sanitize all user input
+      before passing to .rpc() calls, and ensure the database function
+      uses parameterized queries internally.
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-20: Improper Input Validation"
+      confidence: MEDIUM
+    pattern-either:
+      - pattern: $SUPA.rpc($FUNC, req.body)
+      - pattern: $SUPA.rpc($FUNC, req.query)
+      - pattern: $SUPA.rpc($FUNC, { ..., ...req.body })
+      - pattern: $SUPA.rpc($FUNC, { ..., ...req.query })
+
+  # ──────────────────────────────────────────────
+  # 9. supabase-admin-client-side: Supabase admin auth in client-side code
+  # ──────────────────────────────────────────────
+  - id: supabase-admin-client-side
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Supabase auth.admin methods detected. These administrative methods
+      (createUser, deleteUser, listUsers, etc.) require the service_role
+      key and must only be used in server-side code. If this code runs on
+      the client, the service_role key is exposed and an attacker can
+      perform any admin operation. Move admin auth operations to API routes
+      or server-side functions.
+    metadata:
+      category: security
+      owasp: "A01:2021 - Broken Access Control"
+      cwe: "CWE-269: Improper Privilege Management"
+      confidence: HIGH
+    pattern-either:
+      - pattern: $SUPA.auth.admin.createUser(...)
+      - pattern: $SUPA.auth.admin.deleteUser(...)
+      - pattern: $SUPA.auth.admin.listUsers(...)
+      - pattern: $SUPA.auth.admin.getUserById(...)
+      - pattern: $SUPA.auth.admin.updateUserById(...)
+      - pattern: $SUPA.auth.admin.inviteUserByEmail(...)
+      - pattern: $SUPA.auth.admin.generateLink(...)
+
+  # ──────────────────────────────────────────────
+  # 10. supabase-hardcoded-keys: Hardcoded Supabase keys in source code
+  # ──────────────────────────────────────────────
+  - id: supabase-hardcoded-keys
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Hardcoded Supabase URL or API key detected in source code. Hardcoded
+      credentials end up in version control and client bundles, making them
+      accessible to anyone with repository or browser access. Store all
+      Supabase configuration in environment variables and access them via
+      process.env at runtime.
+    metadata:
+      category: security
+      owasp: "A02:2021 - Cryptographic Failures"
+      cwe: "CWE-798: Use of Hard-coded Credentials"
+      confidence: HIGH
+    pattern-either:
+      - pattern: createClient("https://$PROJECT.supabase.co", "...")
+      - pattern: createClient("https://$PROJECT.supabase.co", '...')
+      - pattern: |
+          const $KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
+      - pattern: |
+          const $URL = "https://$PROJECT.supabase.co";
+          ...
+          createClient($URL, ...)
+
+  # ──────────────────────────────────────────────
+  # 11. supabase-mutation-without-rls: Supabase mutations without RLS indication
+  # ──────────────────────────────────────────────
+  - id: supabase-mutation-without-rls
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Supabase data mutation (.insert, .update, .delete, .upsert) detected.
+      Ensure Row Level Security (RLS) is enabled on the target table in the
+      Supabase dashboard. Without RLS, any authenticated (or anonymous) user
+      can modify all rows in the table. Verify RLS policies are configured
+      to restrict mutations to authorized users only.
+    metadata:
+      category: security
+      owasp: "A01:2021 - Broken Access Control"
+      cwe: "CWE-862: Missing Authorization"
+      confidence: LOW
+    pattern-either:
+      - pattern: $SUPA.from($TABLE).insert(...)
+      - pattern: $SUPA.from($TABLE).update(...)
+      - pattern: $SUPA.from($TABLE).delete()
+      - pattern: $SUPA.from($TABLE).upsert(...)
