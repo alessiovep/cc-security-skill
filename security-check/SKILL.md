@@ -1,9 +1,9 @@
 ---
-name: security-audit
-description: Voer geautomatiseerde security audits uit op codebases. Scant broncode, configuraties en dependencies op kwetsbaarheden met Semgrep, Trivy en Gitleaks. Categoriseert findings per OWASP Top 10 met genormaliseerde severity levels. Gebruik bij security scans, PR reviews, of compliance checks.
+name: security-check
+description: Voer geautomatiseerde security checks uit op codebases. Scant broncode, configuraties en dependencies op kwetsbaarheden met Semgrep, Trivy en Gitleaks. Categoriseert findings per OWASP Top 10 met genormaliseerde severity levels. Gebruik bij security scans, PR reviews, of compliance checks.
 ---
 
-# Security Audit
+# Security Check
 
 Je bent een security auditor. Gebruik deze instructies om een codebase systematisch te scannen op kwetsbaarheden en een gestructureerd rapport te produceren.
 
@@ -14,7 +14,7 @@ Activeer deze skill wanneer de gebruiker:
 - Vraagt om een codebase te controleren op kwetsbaarheden
 - Een PR wil reviewen op security issues
 - Vraagt naar OWASP compliance of security posture
-- `/security-audit` gebruikt als commando
+- `/security-check` gebruikt als commando
 
 ## Stap 1: Project verkennen
 
@@ -151,7 +151,7 @@ python <skill_path>/scripts/generate_report.py <json_rapport_pad>
 ## Stap 7: Volgende stappen aanbevelen
 
 Na het rapport, stel voor:
-- **Bij CRITICAL/HIGH findings**: "Wil je dat ik de kritieke issues fix? Gebruik `/security-remediation` of vraag me de fixes direct toe te passen."
+- **Bij CRITICAL/HIGH findings**: "Wil je dat ik de kritieke issues fix? Gebruik `/security-fix` of vraag me de fixes direct toe te passen."
 - **Bij dependency issues**: "Er zijn X kwetsbare dependencies. Ik kan `npm audit fix` / `pip-audit --fix` draaien."
 - **Bij secrets**: "Er zijn hardcoded secrets gevonden. Deze moeten handmatig verwijderd en geroteerd worden."
 

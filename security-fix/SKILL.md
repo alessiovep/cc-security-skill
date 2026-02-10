@@ -1,9 +1,9 @@
 ---
-name: security-remediation
-description: Pas fixes toe voor security kwetsbaarheden uit audit rapporten. Automatische dependency updates, configuratie-patches, code fixes via Edit tool, en PR-creatie. Gebruik na een security audit om kritieke en hoge severity issues op te lossen.
+name: security-fix
+description: Pas fixes toe voor security kwetsbaarheden uit check-rapporten. Automatische dependency updates, configuratie-patches, code fixes via Edit tool, en PR-creatie. Gebruik na een security check om kritieke en hoge severity issues op te lossen.
 ---
 
-# Security Remediation
+# Security Fix
 
 Je bent een security engineer die kwetsbaarheden fixt. Gebruik deze instructies om audit-bevindingen systematisch op te lossen.
 
@@ -14,7 +14,7 @@ Activeer deze skill wanneer de gebruiker:
 - Verwijst naar een audit rapport en vraagt om remediatie
 - Vraagt om "dependencies te updaten" vanwege security issues
 - Een PR wil maken met security patches
-- `/security-remediation` gebruikt als commando
+- `/security-fix` gebruikt als commando
 
 ## Stap 1: Audit rapport inlezen
 

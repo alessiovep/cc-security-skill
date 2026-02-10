@@ -1,21 +1,21 @@
 # Claude Security Skills
 
-> Security audit en remediation skills voor Claude Code
+> Security check en fix skills voor Claude Code
 
 ## Wat doen deze skills?
 
-- **security-audit**: Geautomatiseerde security scans met Semgrep, Trivy en Gitleaks. Categoriseert findings per OWASP Top 10, normaliseert severity levels, en genereert JSON/HTML rapporten.
-- **security-remediation**: Past fixes toe op basis van audit-resultaten. Automatische dependency updates, configuratie-fixes, code-patches via Claude's Edit tool, en PR-creatie.
+- **security-check**: Geautomatiseerde security scans met Semgrep, Trivy en Gitleaks. Categoriseert findings per OWASP Top 10, normaliseert severity levels, en genereert JSON/HTML rapporten.
+- **security-fix**: Past fixes toe op basis van check-resultaten. Automatische dependency updates, configuratie-fixes, code-patches via Claude's Edit tool, en PR-creatie.
 
 ## Installatie
 
 ```bash
 # Clone de repository
-git clone https://github.com/YOUR-USERNAME/claude-security-skill.git
+git clone https://github.com/alessiovep/cc-security-skill.git
 
 # Kopieer skills naar Claude Code
-cp -r claude-security-skill/security-audit ~/.claude/skills/
-cp -r claude-security-skill/security-remediation ~/.claude/skills/
+cp -r cc-security-skill/security-check ~/.claude/skills/
+cp -r cc-security-skill/security-fix ~/.claude/skills/
 ```
 
 ## Prerequisites
@@ -34,56 +34,63 @@ cp -r claude-security-skill/security-remediation ~/.claude/skills/
 
 Voorbeelden van commando's en zinnen die je kunt gebruiken:
 
-- "Voer een security audit uit op dit project"
+- "Voer een security check uit op dit project"
 - "Scan deze codebase op kwetsbaarheden"
-- "Fix de kritieke bevindingen uit de laatste audit"
+- "Fix de kritieke bevindingen uit de laatste check"
 - "Maak een PR met de security fixes"
-- `/security-audit` en `/security-remediation` als slash commands
+- `/security-check` en `/security-fix` als slash commands
 
 ## Architectuur
 
 De twee skills communiceren via een JSON-contract:
 
-- **Audit** produceert een JSON-rapport met:
+- **Check** produceert een JSON-rapport met:
   - `version` -- schemaversie van het rapport
-  - `findings[]` -- lijst van bevindingen, elk met:
+  - `vulnerabilities[]` -- lijst van bevindingen, elk met:
     - `id` -- unieke identifier
-    - `severity` -- genormaliseerd level (critical, high, medium, low)
+    - `severity` -- genormaliseerd level (CRITICAL, HIGH, MEDIUM, LOW)
     - `fix_type` -- type fix (`auto`, `manual`, `dependency`)
     - `fix_hint` -- instructie of suggestie voor de fix
 
-- **Remediation** consumeert dit rapport en past fixes toe op basis van `fix_type`:
-  - `auto` -- automatische code-patches via Claude's Edit tool
+- **Fix** consumeert dit rapport en past fixes toe op basis van `fix_type`:
+  - `auto` -- configuratie-patches
   - `dependency` -- dependency updates via package managers
-  - `manual` -- handmatige instructies voor de ontwikkelaar
+  - `manual` -- code fixes via Claude's Edit tool
 
 ## Structuur
 
 ```
-claude-security-skill/
-├── .gitignore
-├── LICENSE
+cc-security-skill/
 ├── README.md
-├── security-audit/
-│   ├── SKILLS.md
+├── LICENSE
+├── .gitignore
+├── security-check/
+│   ├── SKILL.md
 │   ├── scripts/
-│   │   ├── run_semgrep.sh
-│   │   ├── run_trivy.sh
-│   │   ├── run_gitleaks.sh
-│   │   └── normalize_findings.py
-│   ├── assets/
-│   │   └── semgrep_rules/
-│   │       └── custom_rules.yaml
+│   │   ├── run_security_audit.py
+│   │   └── generate_report.py
+│   ├── assets/semgrep_rules/
+│   │   ├── python_rules.yaml
+│   │   ├── javascript_rules.yaml
+│   │   ├── java_rules.yaml
+│   │   └── go_rules.yaml
 │   └── references/
-│       └── owasp_mapping.json
-└── security-remediation/
-    └── SKILLS.md
+│       ├── severity-mapping.md
+│       └── tool-output-schemas.md
+└── security-fix/
+    ├── SKILL.md
+    ├── scripts/
+    │   ├── apply_dependency_fixes.py
+    │   ├── apply_config_fix.py
+    │   └── create_remediation_pr.py
+    └── assets/
+        ├── pr-template.md
+        └── commit-message-template.txt
 ```
 
 ## Bijdragen
 
 1. Fork de repository
 2. Maak een feature branch (`git checkout -b feature/mijn-feature`)
-3. Commit met een duidelijke beschrijving (`git commit -m "Voeg feature X toe"`)
-4. Push naar je branch (`git push origin feature/mijn-feature`)
-5. Open een Pull Request
+3. Commit met een duidelijke beschrijving
+4. Open een Pull Request
