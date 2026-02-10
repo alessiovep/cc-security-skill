@@ -1,0 +1,362 @@
+rules:
+
+  # --------------------------------------------------------------------------
+  # 1. SQL Injection via string concatenation
+  # --------------------------------------------------------------------------
+  - id: java-sql-injection-concat
+    patterns:
+      - pattern: |
+          String $QUERY = $PREFIX + $INPUT + ...;
+          ...
+          $STMT.executeQuery($QUERY);
+    message: >-
+      SQL query built with string concatenation is vulnerable to SQL injection.
+      Use parameterized queries (PreparedStatement) instead of concatenating
+      user input into SQL strings.
+    languages: [java]
+    severity: ERROR
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-89: SQL Injection"
+
+  - id: java-sql-injection-format
+    patterns:
+      - pattern: |
+          String $QUERY = String.format(...);
+          ...
+          $STMT.executeQuery($QUERY);
+    message: >-
+      SQL query built with String.format is vulnerable to SQL injection.
+      Use parameterized queries (PreparedStatement) with bind variables
+      instead of formatting user input into SQL strings.
+    languages: [java]
+    severity: ERROR
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-89: SQL Injection"
+
+  - id: java-sql-injection-inline
+    pattern: |
+      $STMT.executeQuery($PREFIX + $INPUT + ...);
+    message: >-
+      SQL query built with string concatenation directly in executeQuery() is
+      vulnerable to SQL injection. Use PreparedStatement with parameterized
+      queries instead.
+    languages: [java]
+    severity: ERROR
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-89: SQL Injection"
+
+  # --------------------------------------------------------------------------
+  # 2. XXE (XML External Entity) injection
+  # --------------------------------------------------------------------------
+  - id: java-xxe-documentbuilderfactory
+    patterns:
+      - pattern: |
+          DocumentBuilderFactory $FACTORY = DocumentBuilderFactory.newInstance();
+          ...
+          $FACTORY.newDocumentBuilder();
+      - pattern-not: |
+          DocumentBuilderFactory $FACTORY = DocumentBuilderFactory.newInstance();
+          ...
+          $FACTORY.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+          ...
+          $FACTORY.newDocumentBuilder();
+      - pattern-not: |
+          DocumentBuilderFactory $FACTORY = DocumentBuilderFactory.newInstance();
+          ...
+          $FACTORY.setFeature("http://xml.org/sax/features/external-general-entities", false);
+          ...
+          $FACTORY.newDocumentBuilder();
+    message: >-
+      DocumentBuilderFactory is used without disabling external entity
+      processing, which may lead to XXE attacks. Call
+      setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+      or disable external general and parameter entities before parsing
+      untrusted XML.
+    languages: [java]
+    severity: ERROR
+    metadata:
+      category: security
+      owasp: "A05:2021 - Security Misconfiguration"
+      cwe: "CWE-611: Improper Restriction of XML External Entity Reference"
+
+  - id: java-xxe-xmlinputfactory
+    patterns:
+      - pattern: |
+          XMLInputFactory $FACTORY = XMLInputFactory.newInstance();
+          ...
+          $FACTORY.createXMLStreamReader(...);
+      - pattern-not: |
+          XMLInputFactory $FACTORY = XMLInputFactory.newInstance();
+          ...
+          $FACTORY.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
+          ...
+          $FACTORY.createXMLStreamReader(...);
+    message: >-
+      XMLInputFactory is used without disabling external entity support,
+      making the application vulnerable to XXE attacks. Set
+      IS_SUPPORTING_EXTERNAL_ENTITIES to false and SUPPORT_DTD to false
+      before creating a reader.
+    languages: [java]
+    severity: ERROR
+    metadata:
+      category: security
+      owasp: "A05:2021 - Security Misconfiguration"
+      cwe: "CWE-611: Improper Restriction of XML External Entity Reference"
+
+  # --------------------------------------------------------------------------
+  # 3. Insecure deserialization
+  # --------------------------------------------------------------------------
+  - id: java-insecure-deserialization
+    pattern: |
+      ObjectInputStream $OIS = new ObjectInputStream(...);
+      ...
+      $OIS.readObject();
+    message: >-
+      ObjectInputStream.readObject() deserializes arbitrary objects without
+      type validation, which can lead to remote code execution if an attacker
+      controls the serialized data. Use an allow-list filter
+      (ObjectInputFilter), a safe deserialization library, or avoid Java
+      native serialization for untrusted input.
+    languages: [java]
+    severity: ERROR
+    metadata:
+      category: security
+      owasp: "A08:2021 - Software and Data Integrity Failures"
+      cwe: "CWE-502: Deserialization of Untrusted Data"
+
+  - id: java-insecure-deserialization-inline
+    pattern: |
+      (ObjectInputStream $OIS).readObject();
+    message: >-
+      Calling readObject() on an ObjectInputStream can lead to insecure
+      deserialization and remote code execution. Validate the type of
+      deserialized objects using an ObjectInputFilter or switch to a safer
+      serialization format (e.g., JSON with explicit type mapping).
+    languages: [java]
+    severity: ERROR
+    metadata:
+      category: security
+      owasp: "A08:2021 - Software and Data Integrity Failures"
+      cwe: "CWE-502: Deserialization of Untrusted Data"
+
+  # --------------------------------------------------------------------------
+  # 4. Weak cryptographic algorithms
+  # --------------------------------------------------------------------------
+  - id: java-weak-crypto-des
+    pattern: Cipher.getInstance("DES")
+    message: >-
+      DES is a deprecated cipher with a 56-bit key that can be brute-forced.
+      Use AES-256 (e.g., Cipher.getInstance("AES/GCM/NoPadding")) instead.
+    languages: [java]
+    severity: ERROR
+    metadata:
+      category: security
+      owasp: "A02:2021 - Cryptographic Failures"
+      cwe: "CWE-327: Use of a Broken or Risky Cryptographic Algorithm"
+
+  - id: java-weak-crypto-desede
+    pattern: Cipher.getInstance("DESede")
+    message: >-
+      Triple DES (DESede) is considered weak and is being phased out. Use
+      AES-256 (e.g., Cipher.getInstance("AES/GCM/NoPadding")) for symmetric
+      encryption.
+    languages: [java]
+    severity: WARNING
+    metadata:
+      category: security
+      owasp: "A02:2021 - Cryptographic Failures"
+      cwe: "CWE-327: Use of a Broken or Risky Cryptographic Algorithm"
+
+  - id: java-weak-crypto-md5
+    pattern: MessageDigest.getInstance("MD5")
+    message: >-
+      MD5 is cryptographically broken and must not be used for security
+      purposes such as password hashing or integrity verification. Use
+      SHA-256 or stronger (e.g., MessageDigest.getInstance("SHA-256")).
+    languages: [java]
+    severity: ERROR
+    metadata:
+      category: security
+      owasp: "A02:2021 - Cryptographic Failures"
+      cwe: "CWE-328: Use of Weak Hash"
+
+  - id: java-weak-crypto-sha1
+    pattern: MessageDigest.getInstance("SHA-1")
+    message: >-
+      SHA-1 is deprecated and vulnerable to collision attacks. Use SHA-256
+      or SHA-3 for cryptographic hashing
+      (e.g., MessageDigest.getInstance("SHA-256")).
+    languages: [java]
+    severity: WARNING
+    metadata:
+      category: security
+      owasp: "A02:2021 - Cryptographic Failures"
+      cwe: "CWE-328: Use of Weak Hash"
+
+  # --------------------------------------------------------------------------
+  # 5. Path traversal
+  # --------------------------------------------------------------------------
+  - id: java-path-traversal-concat
+    pattern: new File($PREFIX + $INPUT + ...)
+    message: >-
+      Constructing a File path with string concatenation using user input can
+      lead to path traversal attacks (e.g., "../../etc/passwd"). Validate and
+      canonicalize the path, or use java.nio.file.Path.resolve() and verify
+      the resolved path stays within the expected base directory.
+    languages: [java]
+    severity: ERROR
+    metadata:
+      category: security
+      owasp: "A01:2021 - Broken Access Control"
+      cwe: "CWE-22: Path Traversal"
+
+  - id: java-path-traversal-request
+    patterns:
+      - pattern: |
+          String $PATH = $REQ.getParameter(...);
+          ...
+          new File(..., $PATH);
+    message: >-
+      User-supplied request parameter is used directly in a File constructor,
+      enabling path traversal attacks. Sanitize the input by canonicalizing
+      the path and ensuring it does not escape the intended base directory.
+    languages: [java]
+    severity: ERROR
+    metadata:
+      category: security
+      owasp: "A01:2021 - Broken Access Control"
+      cwe: "CWE-22: Path Traversal"
+
+  # --------------------------------------------------------------------------
+  # 6. LDAP injection
+  # --------------------------------------------------------------------------
+  - id: java-ldap-injection
+    pattern: |
+      $CTX.search($DN, $PREFIX + $INPUT + ..., ...);
+    message: >-
+      LDAP search filter built with string concatenation is vulnerable to
+      LDAP injection. Use a parameterized LDAP search or escape special
+      characters in user input with a method such as
+      javax.naming.ldap.Rdn.escapeValue() before embedding it in a filter.
+    languages: [java]
+    severity: ERROR
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-90: LDAP Injection"
+
+  - id: java-ldap-injection-format
+    patterns:
+      - pattern: |
+          String $FILTER = String.format(...);
+          ...
+          $CTX.search(..., $FILTER, ...);
+    message: >-
+      LDAP filter constructed with String.format may be vulnerable to LDAP
+      injection if user input is included without proper escaping. Use
+      parameterized filters or escape user input with
+      javax.naming.ldap.Rdn.escapeValue().
+    languages: [java]
+    severity: ERROR
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-90: LDAP Injection"
+
+  # --------------------------------------------------------------------------
+  # 7. Server-Side Request Forgery (SSRF)
+  # --------------------------------------------------------------------------
+  - id: java-ssrf-url
+    patterns:
+      - pattern: |
+          String $URLSTR = $REQ.getParameter(...);
+          ...
+          URL $URL = new URL($URLSTR);
+    message: >-
+      A URL is created directly from user-supplied input, which can lead to
+      Server-Side Request Forgery (SSRF). Validate the URL against an
+      allow-list of permitted hosts and schemes before opening a connection.
+    languages: [java]
+    severity: ERROR
+    metadata:
+      category: security
+      owasp: "A10:2021 - Server-Side Request Forgery"
+      cwe: "CWE-918: Server-Side Request Forgery (SSRF)"
+
+  - id: java-ssrf-connection
+    patterns:
+      - pattern: |
+          URL $URL = new URL(...);
+          ...
+          HttpURLConnection $CONN = (HttpURLConnection) $URL.openConnection();
+      - pattern-inside: |
+          String $INPUT = $REQ.getParameter(...);
+          ...
+    message: >-
+      An HttpURLConnection is opened using a URL that may contain
+      user-controlled input, making the application vulnerable to SSRF.
+      Validate and restrict the target URL to trusted hosts using an
+      allow-list before connecting.
+    languages: [java]
+    severity: ERROR
+    metadata:
+      category: security
+      owasp: "A10:2021 - Server-Side Request Forgery"
+      cwe: "CWE-918: Server-Side Request Forgery (SSRF)"
+
+  - id: java-ssrf-httpurlconnection-concat
+    pattern: |
+      HttpURLConnection $CONN = (HttpURLConnection) new URL($PREFIX + $INPUT + ...).openConnection();
+    message: >-
+      An HttpURLConnection is opened with a URL built via string
+      concatenation, which may include user-controlled input and enable SSRF.
+      Validate the full URL against an allow-list before connecting.
+    languages: [java]
+    severity: ERROR
+    metadata:
+      category: security
+      owasp: "A10:2021 - Server-Side Request Forgery"
+      cwe: "CWE-918: Server-Side Request Forgery (SSRF)"
+
+  # --------------------------------------------------------------------------
+  # 8. Insecure random number generation
+  # --------------------------------------------------------------------------
+  - id: java-insecure-random
+    pattern: new java.util.Random(...)
+    message: >-
+      java.util.Random is not cryptographically secure and must not be used
+      for security-sensitive operations such as token generation, password
+      resets, or session IDs. Use java.security.SecureRandom instead.
+    languages: [java]
+    severity: WARNING
+    metadata:
+      category: security
+      owasp: "A02:2021 - Cryptographic Failures"
+      cwe: "CWE-330: Use of Insufficiently Random Values"
+
+  - id: java-insecure-random-import
+    patterns:
+      - pattern: |
+          import java.util.Random;
+          ...
+          Random $RNG = new Random(...);
+      - pattern-not: |
+          import java.security.SecureRandom;
+          ...
+    message: >-
+      java.util.Random produces predictable values and should not be used
+      where cryptographic randomness is required. Replace with
+      java.security.SecureRandom for tokens, nonces, keys, and other
+      security-sensitive random values.
+    languages: [java]
+    severity: WARNING
+    metadata:
+      category: security
+      owasp: "A02:2021 - Cryptographic Failures"
+      cwe: "CWE-330: Use of Insufficiently Random Values"

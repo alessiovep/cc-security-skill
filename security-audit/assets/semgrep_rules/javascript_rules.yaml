@@ -1,0 +1,361 @@
+rules:
+  # ──────────────────────────────────────────────
+  # 1. eval-usage: Detect dangerous dynamic code evaluation
+  # ──────────────────────────────────────────────
+  - id: js-eval-usage
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Dangerous use of dynamic code evaluation detected. eval(), Function(),
+      and setTimeout/setInterval with string arguments can execute arbitrary
+      code. If user-controlled data reaches these functions, an attacker can
+      achieve remote code execution. Use safer alternatives such as
+      JSON.parse() for data parsing or direct function references for
+      setTimeout/setInterval.
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-95: Improper Neutralization of Directives in Dynamically Evaluated Code"
+      confidence: HIGH
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: eval($X)
+      - pattern: new Function(...)
+      - pattern: new Function($BODY)
+      - pattern: Function(...)
+      - pattern: Function($BODY)
+      - pattern: setTimeout($FUNC, ...)
+        metavariable-pattern:
+          metavariable: $FUNC
+          pattern: |
+            "..."
+      - pattern: setInterval($FUNC, ...)
+        metavariable-pattern:
+          metavariable: $FUNC
+          pattern: |
+            "..."
+      - pattern: setTimeout(`...`, ...)
+      - pattern: setInterval(`...`, ...)
+
+  # ──────────────────────────────────────────────
+  # 2. innerHTML-xss: Detect innerHTML/outerHTML assignments
+  # ──────────────────────────────────────────────
+  - id: js-innerHTML-xss
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Direct assignment to innerHTML or outerHTML detected. This can lead to
+      Cross-Site Scripting (XSS) if the assigned value contains unsanitized
+      user input. Use textContent for plain text, or sanitize HTML with a
+      trusted library such as DOMPurify before assignment.
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-79: Improper Neutralization of Input During Web Page Generation"
+      confidence: MEDIUM
+    pattern-either:
+      - pattern: $EL.innerHTML = ...;
+      - pattern: $EL.outerHTML = ...;
+      - pattern: $EL.innerHTML += ...;
+      - pattern: $EL.outerHTML += ...;
+
+  # ──────────────────────────────────────────────
+  # 3. dom-xss: Detect document.write / document.writeln
+  # ──────────────────────────────────────────────
+  - id: js-dom-xss
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Use of document.write() or document.writeln() detected. These methods
+      inject raw HTML into the document and are a common source of DOM-based
+      Cross-Site Scripting (XSS). Replace with safer DOM manipulation methods
+      such as createElement/appendChild or textContent assignments.
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-79: Improper Neutralization of Input During Web Page Generation"
+      confidence: HIGH
+    pattern-either:
+      - pattern: document.write(...)
+      - pattern: document.writeln(...)
+      - pattern: document.write($X)
+      - pattern: document.writeln($X)
+
+  # ──────────────────────────────────────────────
+  # 4. command-injection: Detect child_process with dynamic input
+  # ──────────────────────────────────────────────
+  - id: js-command-injection
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Use of child_process exec/execSync with dynamically constructed command
+      strings detected. Template literals and string concatenation in shell
+      commands can lead to command injection if user input is included.
+      Use execFile/execFileSync with an argument array instead, or use a
+      dedicated library that properly escapes shell arguments.
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-78: Improper Neutralization of Special Elements used in an OS Command"
+      confidence: HIGH
+    pattern-either:
+      # child_process.exec with template literal
+      - pattern: child_process.exec(`...`)
+      - pattern: child_process.execSync(`...`)
+      # child_process.exec with string concatenation
+      - pattern: child_process.exec($A + $B)
+      - pattern: child_process.execSync($A + $B)
+      # require('child_process').exec with template literal
+      - pattern: require('child_process').exec(`...`)
+      - pattern: require('child_process').execSync(`...`)
+      # require('child_process').exec with concatenation
+      - pattern: require('child_process').exec($A + $B)
+      - pattern: require('child_process').execSync($A + $B)
+      # Bare exec/execSync with template literal (after destructuring)
+      - patterns:
+          - pattern: $FN(`...`)
+          - pattern-inside: |
+              const { exec: $FN, ... } = require('child_process');
+              ...
+      - patterns:
+          - pattern: $FN(`...`)
+          - pattern-inside: |
+              const { execSync: $FN, ... } = require('child_process');
+              ...
+      - patterns:
+          - pattern: $FN($A + $B)
+          - pattern-inside: |
+              const { exec: $FN, ... } = require('child_process');
+              ...
+      - patterns:
+          - pattern: $FN($A + $B)
+          - pattern-inside: |
+              const { execSync: $FN, ... } = require('child_process');
+              ...
+      # ES module imports
+      - patterns:
+          - pattern: $FN(`...`)
+          - pattern-inside: |
+              import { exec as $FN } from 'child_process';
+              ...
+      - patterns:
+          - pattern: $FN(`...`)
+          - pattern-inside: |
+              import { execSync as $FN } from 'child_process';
+              ...
+
+  # ──────────────────────────────────────────────
+  # 5. prototype-pollution: Detect Object.assign / deep merge risks
+  # ──────────────────────────────────────────────
+  - id: js-prototype-pollution
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Potential prototype pollution detected. Object.assign() or recursive
+      merge/extend functions used with user-controlled input (e.g., req.body,
+      req.query) can allow an attacker to inject properties into Object
+      prototypes, leading to application-wide side effects. Validate and
+      sanitize input keys, or use Map/Object.create(null) for key-value stores.
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-1321: Improperly Controlled Modification of Object Prototype Attributes"
+      confidence: MEDIUM
+    pattern-either:
+      # Object.assign with request data
+      - pattern: Object.assign($TARGET, req.body)
+      - pattern: Object.assign($TARGET, req.query)
+      - pattern: Object.assign($TARGET, req.params)
+      - pattern: Object.assign($TARGET, req.body, ...)
+      - pattern: Object.assign($TARGET, req.query, ...)
+      - pattern: Object.assign($TARGET, req.params, ...)
+      # Spread of user input into objects
+      - pattern: |
+          {...req.body}
+      - pattern: |
+          {...req.query}
+      # Deep merge / extend with user input
+      - pattern: merge($TARGET, req.body)
+      - pattern: merge($TARGET, req.query)
+      - pattern: deepMerge($TARGET, req.body)
+      - pattern: deepMerge($TARGET, req.query)
+      - pattern: extend($TARGET, req.body)
+      - pattern: extend($TARGET, req.query)
+      - pattern: _.merge($TARGET, req.body)
+      - pattern: _.merge($TARGET, req.query)
+      - pattern: _.merge($TARGET, req.params)
+      - pattern: _.defaultsDeep($TARGET, req.body)
+      - pattern: _.defaultsDeep($TARGET, req.query)
+
+  # ──────────────────────────────────────────────
+  # 6. nosql-injection: Detect MongoDB $where with unsanitized input
+  # ──────────────────────────────────────────────
+  - id: js-nosql-injection
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Potential NoSQL injection detected. MongoDB queries using $where with
+      user-controlled input allow arbitrary JavaScript execution on the
+      database server. Use standard query operators instead of $where, and
+      always validate/sanitize user input before including it in database
+      queries.
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-943: Improper Neutralization of Special Elements in Data Query Logic"
+      confidence: HIGH
+    pattern-either:
+      # Direct $where with user input via template literal
+      - pattern: |
+          $COLLECTION.find({$where: `...${req.body.$PARAM}...`})
+      - pattern: |
+          $COLLECTION.find({$where: `...${req.query.$PARAM}...`})
+      - pattern: |
+          $COLLECTION.find({$where: `...${req.params.$PARAM}...`})
+      # $where with string concatenation of user input
+      - pattern: |
+          $COLLECTION.find({$where: $A + req.body.$PARAM})
+      - pattern: |
+          $COLLECTION.find({$where: $A + req.query.$PARAM})
+      - pattern: |
+          $COLLECTION.find({$where: $A + req.params.$PARAM})
+      # $where with variable (non-literal) -- catch dynamic queries
+      - patterns:
+          - pattern: |
+              $COLLECTION.find({$where: $QUERY})
+          - pattern-not: |
+              $COLLECTION.find({$where: "..."})
+      # Direct user input as entire query object (operator injection)
+      - pattern: |
+          $COLLECTION.find(req.body)
+      - pattern: |
+          $COLLECTION.find(req.query)
+      - pattern: |
+          $COLLECTION.findOne(req.body)
+      - pattern: |
+          $COLLECTION.findOne(req.query)
+      - pattern: |
+          $COLLECTION.find({...: req.body.$PARAM})
+      - pattern: |
+          $COLLECTION.find({...: req.query.$PARAM})
+
+  # ──────────────────────────────────────────────
+  # 7. path-traversal: Detect fs operations with unsanitized user input
+  # ──────────────────────────────────────────────
+  - id: js-path-traversal
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Potential path traversal vulnerability detected. File system operations
+      using unsanitized user input from req.params, req.query, or req.body
+      can allow attackers to read or write arbitrary files by injecting
+      sequences like '../'. Validate file paths with path.resolve() and
+      ensure the resolved path stays within the intended directory.
+    metadata:
+      category: security
+      owasp: "A01:2021 - Broken Access Control"
+      cwe: "CWE-22: Improper Limitation of a Pathname to a Restricted Directory"
+      confidence: HIGH
+    pattern-either:
+      # fs.readFile with concatenated user input
+      - pattern: fs.readFile($A + req.params.$PARAM, ...)
+      - pattern: fs.readFile($A + req.query.$PARAM, ...)
+      - pattern: fs.readFile($A + req.body.$PARAM, ...)
+      - pattern: fs.readFileSync($A + req.params.$PARAM, ...)
+      - pattern: fs.readFileSync($A + req.query.$PARAM, ...)
+      - pattern: fs.readFileSync($A + req.body.$PARAM, ...)
+      # fs.readFile with template literal containing user input
+      - pattern: fs.readFile(`...${req.params.$PARAM}...`, ...)
+      - pattern: fs.readFile(`...${req.query.$PARAM}...`, ...)
+      - pattern: fs.readFile(`...${req.body.$PARAM}...`, ...)
+      - pattern: fs.readFileSync(`...${req.params.$PARAM}...`, ...)
+      - pattern: fs.readFileSync(`...${req.query.$PARAM}...`, ...)
+      - pattern: fs.readFileSync(`...${req.body.$PARAM}...`, ...)
+      # fs.writeFile with user input paths
+      - pattern: fs.writeFile($A + req.params.$PARAM, ...)
+      - pattern: fs.writeFile($A + req.query.$PARAM, ...)
+      - pattern: fs.writeFile($A + req.body.$PARAM, ...)
+      - pattern: fs.writeFileSync($A + req.params.$PARAM, ...)
+      - pattern: fs.writeFileSync($A + req.query.$PARAM, ...)
+      - pattern: fs.writeFileSync($A + req.body.$PARAM, ...)
+      - pattern: fs.writeFile(`...${req.params.$PARAM}...`, ...)
+      - pattern: fs.writeFile(`...${req.query.$PARAM}...`, ...)
+      - pattern: fs.writeFile(`...${req.body.$PARAM}...`, ...)
+      - pattern: fs.writeFileSync(`...${req.params.$PARAM}...`, ...)
+      - pattern: fs.writeFileSync(`...${req.query.$PARAM}...`, ...)
+      - pattern: fs.writeFileSync(`...${req.body.$PARAM}...`, ...)
+      # path.join with user input passed to fs
+      - pattern: fs.readFile(path.join(..., req.params.$PARAM, ...), ...)
+      - pattern: fs.readFile(path.join(..., req.query.$PARAM, ...), ...)
+      - pattern: fs.readFile(path.join(..., req.body.$PARAM, ...), ...)
+      - pattern: fs.readFileSync(path.join(..., req.params.$PARAM, ...), ...)
+      - pattern: fs.readFileSync(path.join(..., req.query.$PARAM, ...), ...)
+      - pattern: fs.readFileSync(path.join(..., req.body.$PARAM, ...), ...)
+      # fs.createReadStream with user input
+      - pattern: fs.createReadStream($A + req.params.$PARAM, ...)
+      - pattern: fs.createReadStream($A + req.query.$PARAM, ...)
+      - pattern: fs.createReadStream(`...${req.params.$PARAM}...`, ...)
+      - pattern: fs.createReadStream(`...${req.query.$PARAM}...`, ...)
+      # Direct user input as path
+      - pattern: fs.readFile(req.params.$PARAM, ...)
+      - pattern: fs.readFile(req.query.$PARAM, ...)
+      - pattern: fs.readFile(req.body.$PARAM, ...)
+      - pattern: fs.readFileSync(req.params.$PARAM, ...)
+      - pattern: fs.readFileSync(req.query.$PARAM, ...)
+      - pattern: fs.readFileSync(req.body.$PARAM, ...)
+
+  # ──────────────────────────────────────────────
+  # 8. open-redirect: Detect res.redirect with user-controlled input
+  # ──────────────────────────────────────────────
+  - id: js-open-redirect
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Potential open redirect vulnerability detected. Using user-controlled
+      input directly in res.redirect() allows attackers to redirect users to
+      malicious websites, enabling phishing attacks. Validate redirect URLs
+      against an allowlist of permitted destinations, or use relative paths
+      and verify the target stays within your domain.
+    metadata:
+      category: security
+      owasp: "A01:2021 - Broken Access Control"
+      cwe: "CWE-601: URL Redirection to Untrusted Site"
+      confidence: HIGH
+    pattern-either:
+      # Direct user input in redirect
+      - pattern: res.redirect(req.query.$PARAM)
+      - pattern: res.redirect(req.params.$PARAM)
+      - pattern: res.redirect(req.body.$PARAM)
+      - pattern: res.redirect(req.query.$PARAM, ...)
+      # Template literal or concatenation with user input
+      - pattern: res.redirect(`...${req.query.$PARAM}...`)
+      - pattern: res.redirect(`...${req.params.$PARAM}...`)
+      - pattern: res.redirect(`...${req.body.$PARAM}...`)
+      - pattern: res.redirect($A + req.query.$PARAM)
+      - pattern: res.redirect($A + req.params.$PARAM)
+      - pattern: res.redirect($A + req.body.$PARAM)
+      # Via headers
+      - pattern: res.redirect(req.headers.$PARAM)
+      - pattern: res.redirect(req.headers.referer)
+      # Assigned to variable then redirected
+      - patterns:
+          - pattern: res.redirect($URL)
+          - pattern-inside: |
+              $URL = req.query.$PARAM;
+              ...
+      - patterns:
+          - pattern: res.redirect($URL)
+          - pattern-inside: |
+              $URL = req.body.$PARAM;
+              ...
+      # Common pattern: redirect to destructured query param
+      - patterns:
+          - pattern: res.redirect($URL)
+          - pattern-inside: |
+              const { $URL, ... } = req.query;
+              ...
+      - patterns:
+          - pattern: res.redirect($URL)
+          - pattern-inside: |
+              let $URL = req.query.$PARAM;
+              ...

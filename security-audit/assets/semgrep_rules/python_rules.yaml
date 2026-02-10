@@ -1,0 +1,118 @@
+rules:
+  - id: hardcoded-api-key
+    pattern-either:
+      - pattern: |
+          $KEY = "sk-..."
+      - pattern: |
+          $KEY = "api_key_..."
+      - pattern: |
+          $KEY = "secret_..."
+    message: Potential hardcoded API key or secret found
+    severity: ERROR
+    languages: [python, javascript, typescript, java]
+    metadata:
+      category: security
+      owasp: A02:2021 - Cryptographic Failures
+      
+  - id: unsafe-yaml-load
+    patterns:
+      - pattern: yaml.load(...)
+      - pattern-not: yaml.load(..., Loader=yaml.SafeLoader)
+      - pattern-not: yaml.load(..., Loader=yaml.FullLoader)
+    message: Use of unsafe yaml.load() can lead to arbitrary code execution
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      owasp: A08:2021 - Software and Data Integrity Failures
+      
+  - id: eval-with-user-input
+    patterns:
+      - pattern-either:
+          - pattern: eval($USER_INPUT)
+          - pattern: exec($USER_INPUT)
+      - metavariable-regex:
+          metavariable: $USER_INPUT
+          regex: (request\.|input\(|sys\.argv)
+    message: Using eval/exec with user input can lead to code injection
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      owasp: A03:2021 - Injection
+      
+  - id: weak-random
+    pattern-either:
+      - pattern: random.random()
+      - pattern: random.randint(...)
+      - pattern: random.choice(...)
+    message: Use secrets module for cryptographically secure random values
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      owasp: A02:2021 - Cryptographic Failures
+      
+  - id: sql-string-concatenation
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $QUERY = "SELECT * FROM " + $INPUT
+          - pattern: |
+              $QUERY = f"SELECT * FROM {$INPUT}"
+          - pattern: |
+              cursor.execute("SELECT * FROM " + $INPUT)
+    message: SQL query built using string concatenation - use parameterized queries
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      owasp: A03:2021 - Injection
+      
+  - id: missing-csrf-protection
+    patterns:
+      - pattern: |
+          @app.route(..., methods=[..., "POST", ...])
+          def $FUNC(...):
+              ...
+      - pattern-not: |
+          @app.route(..., methods=[..., "POST", ...])
+          @csrf_protect
+          def $FUNC(...):
+              ...
+    message: POST endpoint without CSRF protection
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      owasp: A01:2021 - Broken Access Control
+      
+  - id: open-redirect
+    patterns:
+      - pattern-either:
+          - pattern: redirect(request.$ARGS.get(...))
+          - pattern: redirect(request.$ARGS[...])
+      - metavariable-regex:
+          metavariable: $ARGS
+          regex: (args|form|values)
+    message: Open redirect vulnerability - validate redirect URLs
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      owasp: A01:2021 - Broken Access Control
+      
+  - id: insecure-cookie
+    patterns:
+      - pattern: |
+          response.set_cookie(...)
+      - pattern-not: |
+          response.set_cookie(..., secure=True, ...)
+      - pattern-not: |
+          response.set_cookie(..., httponly=True, ...)
+    message: Cookie should be set with Secure and HttpOnly flags
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      owasp: A05:2021 - Security Misconfiguration

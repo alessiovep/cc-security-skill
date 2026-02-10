@@ -1,0 +1,558 @@
+rules:
+  # ──────────────────────────────────────────────
+  # 1. SQL Injection via string formatting
+  # ──────────────────────────────────────────────
+  - id: go-sql-injection-sprintf
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $DB.Query(fmt.Sprintf($FMT, ...), ...)
+          - pattern: |
+              $DB.QueryContext($CTX, fmt.Sprintf($FMT, ...), ...)
+          - pattern: |
+              $DB.Exec(fmt.Sprintf($FMT, ...), ...)
+          - pattern: |
+              $DB.ExecContext($CTX, fmt.Sprintf($FMT, ...), ...)
+          - pattern: |
+              $DB.QueryRow(fmt.Sprintf($FMT, ...), ...)
+          - pattern: |
+              $DB.QueryRowContext($CTX, fmt.Sprintf($FMT, ...), ...)
+          - pattern: |
+              $DB.Prepare(fmt.Sprintf($FMT, ...), ...)
+    message: >-
+      SQL query built with fmt.Sprintf is vulnerable to SQL injection.
+      Use parameterized queries with placeholder arguments instead
+      (e.g., db.Query("SELECT * FROM users WHERE id = $1", id)).
+    languages: [go]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-89: SQL Injection"
+      owasp: "A03:2021 - Injection"
+      confidence: HIGH
+
+  - id: go-sql-injection-concatenation
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $DB.Query($X + $Y, ...)
+          - pattern: |
+              $DB.Exec($X + $Y, ...)
+          - pattern: |
+              $DB.QueryRow($X + $Y, ...)
+          - pattern: |
+              $DB.Prepare($X + $Y, ...)
+    message: >-
+      SQL query built with string concatenation is vulnerable to SQL injection.
+      Use parameterized queries with placeholder arguments instead
+      (e.g., db.Query("SELECT * FROM users WHERE id = $1", id)).
+    languages: [go]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-89: SQL Injection"
+      owasp: "A03:2021 - Injection"
+      confidence: HIGH
+
+  # ──────────────────────────────────────────────
+  # 2. Command Injection
+  # ──────────────────────────────────────────────
+  - id: go-command-injection
+    patterns:
+      - pattern-either:
+          - pattern: |
+              exec.Command($CMD, $REQ. $FIELD, ...)
+          - pattern: |
+              exec.CommandContext($CTX, $CMD, $REQ. $FIELD, ...)
+          - pattern: |
+              exec.Command(fmt.Sprintf(...), ...)
+          - pattern: |
+              exec.CommandContext($CTX, fmt.Sprintf(...), ...)
+          - pattern: |
+              exec.Command($REQ. $FIELD, ...)
+          - pattern: |
+              exec.CommandContext($CTX, $REQ. $FIELD, ...)
+    message: >-
+      User-controlled data is passed to exec.Command, which can lead to
+      command injection. Validate and sanitize all input before passing it
+      to system commands. Prefer using a fixed command name with an explicit
+      allowlist of permitted arguments.
+    languages: [go]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-78: OS Command Injection"
+      owasp: "A03:2021 - Injection"
+      confidence: MEDIUM
+
+  - id: go-command-injection-shell
+    patterns:
+      - pattern-either:
+          - pattern: |
+              exec.Command("bash", "-c", $INPUT, ...)
+          - pattern: |
+              exec.Command("sh", "-c", $INPUT, ...)
+          - pattern: |
+              exec.Command("/bin/bash", "-c", $INPUT, ...)
+          - pattern: |
+              exec.Command("/bin/sh", "-c", $INPUT, ...)
+    message: >-
+      Running a shell command with user-controlled input via bash -c or sh -c
+      is highly susceptible to command injection. Avoid invoking a shell
+      interpreter with dynamic strings. Use exec.Command with explicit
+      arguments instead.
+    languages: [go]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-78: OS Command Injection"
+      owasp: "A03:2021 - Injection"
+      confidence: HIGH
+
+  # ──────────────────────────────────────────────
+  # 3. Insecure TLS Configuration
+  # ──────────────────────────────────────────────
+  - id: go-insecure-tls
+    patterns:
+      - pattern: |
+          tls.Config{..., InsecureSkipVerify: true, ...}
+    message: >-
+      TLS certificate verification is disabled (InsecureSkipVerify: true).
+      This allows man-in-the-middle attacks by accepting any certificate.
+      Remove InsecureSkipVerify or set it to false, and configure proper
+      certificate validation.
+    languages: [go]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-295: Improper Certificate Validation"
+      owasp: "A07:2021 - Identification and Authentication Failures"
+      confidence: HIGH
+
+  - id: go-insecure-tls-min-version
+    patterns:
+      - pattern-either:
+          - pattern: |
+              tls.Config{..., MinVersion: tls.VersionSSL30, ...}
+          - pattern: |
+              tls.Config{..., MinVersion: tls.VersionTLS10, ...}
+          - pattern: |
+              tls.Config{..., MinVersion: tls.VersionTLS11, ...}
+    message: >-
+      TLS configuration uses a deprecated or insecure minimum version
+      (SSL 3.0, TLS 1.0, or TLS 1.1). Set MinVersion to tls.VersionTLS12
+      or tls.VersionTLS13 to ensure secure communication.
+    languages: [go]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-326: Inadequate Encryption Strength"
+      owasp: "A02:2021 - Cryptographic Failures"
+      confidence: HIGH
+
+  # ──────────────────────────────────────────────
+  # 4. Server-Side Request Forgery (SSRF)
+  # ──────────────────────────────────────────────
+  - id: go-ssrf-http-get
+    patterns:
+      - pattern-either:
+          - pattern: |
+              http.Get($REQ. $FIELD)
+          - pattern: |
+              http.Get(fmt.Sprintf(...))
+          - pattern: |
+              http.Post($REQ. $FIELD, ...)
+          - pattern: |
+              http.Post(fmt.Sprintf(...), ...)
+          - pattern: |
+              http.Get($URL + ...)
+          - pattern: |
+              http.Post($URL + ..., ...)
+    message: >-
+      An HTTP request is made with a user-controlled URL, which can lead
+      to Server-Side Request Forgery (SSRF). Validate the URL against an
+      allowlist of permitted hosts and schemes before making the request.
+      Block requests to internal/private IP ranges (127.0.0.0/8, 10.0.0.0/8,
+      172.16.0.0/12, 192.168.0.0/16, 169.254.169.254).
+    languages: [go]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-918: Server-Side Request Forgery"
+      owasp: "A10:2021 - Server-Side Request Forgery"
+      confidence: MEDIUM
+
+  - id: go-ssrf-client-do
+    patterns:
+      - pattern-either:
+          - pattern: |
+              http.NewRequest($METHOD, $REQ. $FIELD, ...)
+          - pattern: |
+              http.NewRequest($METHOD, fmt.Sprintf(...), ...)
+          - pattern: |
+              http.NewRequestWithContext($CTX, $METHOD, $REQ. $FIELD, ...)
+          - pattern: |
+              http.NewRequestWithContext($CTX, $METHOD, fmt.Sprintf(...), ...)
+    message: >-
+      An HTTP request is constructed with a user-controlled URL, which can
+      lead to Server-Side Request Forgery (SSRF). Validate the URL against
+      an allowlist of permitted hosts and block internal/private IP ranges
+      before making the request.
+    languages: [go]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-918: Server-Side Request Forgery"
+      owasp: "A10:2021 - Server-Side Request Forgery"
+      confidence: MEDIUM
+
+  # ──────────────────────────────────────────────
+  # 5. Path Traversal
+  # ──────────────────────────────────────────────
+  - id: go-path-traversal
+    patterns:
+      - pattern-either:
+          - pattern: |
+              os.Open($REQ. $FIELD)
+          - pattern: |
+              os.Open(fmt.Sprintf(...))
+          - pattern: |
+              os.Open($PREFIX + $REQ. $FIELD)
+          - pattern: |
+              os.ReadFile($REQ. $FIELD)
+          - pattern: |
+              os.ReadFile(fmt.Sprintf(...))
+          - pattern: |
+              os.ReadFile($PREFIX + $REQ. $FIELD)
+          - pattern: |
+              os.OpenFile($REQ. $FIELD, ...)
+          - pattern: |
+              os.OpenFile(fmt.Sprintf(...), ...)
+          - pattern: |
+              os.OpenFile($PREFIX + $REQ. $FIELD, ...)
+          - pattern: |
+              ioutil.ReadFile($REQ. $FIELD)
+          - pattern: |
+              ioutil.ReadFile(fmt.Sprintf(...))
+          - pattern: |
+              ioutil.ReadFile($PREFIX + $REQ. $FIELD)
+    message: >-
+      A file path derived from an HTTP request is passed to a file operation
+      without sanitization, which can lead to path traversal attacks.
+      Use filepath.Clean and validate that the resolved path stays within
+      the intended directory using filepath.Rel or strings.HasPrefix after
+      calling filepath.Abs.
+    languages: [go]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-22: Path Traversal"
+      owasp: "A01:2021 - Broken Access Control"
+      confidence: MEDIUM
+
+  - id: go-path-traversal-filepath-join
+    patterns:
+      - pattern-either:
+          - pattern: |
+              filepath.Join($BASE, $REQ. $FIELD)
+          - pattern: |
+              filepath.Join($BASE, fmt.Sprintf(...))
+    pattern-not-inside: |
+      ...
+      if !strings.HasPrefix(...) { ... }
+      ...
+    message: >-
+      filepath.Join with user input can still result in path traversal
+      because it resolves ".." components. Validate the final joined path
+      stays within the intended base directory by checking with
+      filepath.Abs and strings.HasPrefix.
+    languages: [go]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-22: Path Traversal"
+      owasp: "A01:2021 - Broken Access Control"
+      confidence: LOW
+
+  # ──────────────────────────────────────────────
+  # 6. Weak Cryptography
+  # ──────────────────────────────────────────────
+  - id: go-weak-crypto-md5
+    patterns:
+      - pattern-either:
+          - pattern: |
+              md5.New()
+          - pattern: |
+              md5.Sum(...)
+    message: >-
+      MD5 is a cryptographically broken hash function and must not be used
+      for security purposes such as password hashing, integrity verification,
+      or digital signatures. Use crypto/sha256, crypto/sha512, or
+      golang.org/x/crypto/bcrypt instead.
+    languages: [go]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-328: Use of Weak Hash"
+      owasp: "A02:2021 - Cryptographic Failures"
+      confidence: MEDIUM
+
+  - id: go-weak-crypto-sha1
+    patterns:
+      - pattern-either:
+          - pattern: |
+              sha1.New()
+          - pattern: |
+              sha1.Sum(...)
+    message: >-
+      SHA-1 is a cryptographically weak hash function and should not be used
+      for security purposes. Collisions have been demonstrated in practice.
+      Use crypto/sha256 or crypto/sha512 for hashing, or
+      golang.org/x/crypto/bcrypt for password hashing.
+    languages: [go]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-328: Use of Weak Hash"
+      owasp: "A02:2021 - Cryptographic Failures"
+      confidence: MEDIUM
+
+  - id: go-weak-crypto-des
+    patterns:
+      - pattern-either:
+          - pattern: |
+              des.NewCipher(...)
+          - pattern: |
+              des.NewTripleDESCipher(...)
+    message: >-
+      DES and 3DES are deprecated encryption algorithms with insufficient
+      key lengths. Use AES (crypto/aes) with GCM mode for symmetric
+      encryption instead.
+    languages: [go]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-326: Inadequate Encryption Strength"
+      owasp: "A02:2021 - Cryptographic Failures"
+      confidence: HIGH
+
+  - id: go-weak-crypto-rc4
+    patterns:
+      - pattern: |
+          rc4.NewCipher(...)
+    message: >-
+      RC4 is a broken stream cipher with known practical attacks and must
+      not be used. Use AES-GCM (crypto/aes with cipher.NewGCM) or
+      ChaCha20-Poly1305 (golang.org/x/crypto/chacha20poly1305) instead.
+    languages: [go]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-326: Inadequate Encryption Strength"
+      owasp: "A02:2021 - Cryptographic Failures"
+      confidence: HIGH
+
+  # ──────────────────────────────────────────────
+  # 7. Hardcoded Credentials
+  # ──────────────────────────────────────────────
+  - id: go-hardcoded-credentials
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $VAR := "..."
+          - pattern: |
+              var $VAR = "..."
+          - pattern: |
+              var $VAR string = "..."
+          - pattern: |
+              const $VAR = "..."
+          - pattern: |
+              const $VAR string = "..."
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: (?i)(password|passwd|pwd|secret|api_key|apikey|api_secret|token|auth_token|access_token|private_key|secret_key)
+      - pattern-not: |
+          $VAR := ""
+      - pattern-not: |
+          var $VAR = ""
+      - pattern-not: |
+          const $VAR = ""
+    message: >-
+      A variable whose name suggests it holds a credential (password, secret,
+      API key, or token) is assigned a hardcoded string literal. This exposes
+      secrets in source code and version control. Use environment variables,
+      a secrets manager (e.g., HashiCorp Vault, AWS Secrets Manager), or
+      a configuration file excluded from version control.
+    languages: [go]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-798: Use of Hard-coded Credentials"
+      owasp: "A07:2021 - Identification and Authentication Failures"
+      confidence: MEDIUM
+
+  - id: go-hardcoded-credentials-struct
+    patterns:
+      - pattern-either:
+          - pattern: |
+              &$TYPE{..., Password: "...", ...}
+          - pattern: |
+              &$TYPE{..., Secret: "...", ...}
+          - pattern: |
+              &$TYPE{..., Token: "...", ...}
+          - pattern: |
+              &$TYPE{..., APIKey: "...", ...}
+          - pattern: |
+              $TYPE{..., Password: "...", ...}
+          - pattern: |
+              $TYPE{..., Secret: "...", ...}
+          - pattern: |
+              $TYPE{..., Token: "...", ...}
+          - pattern: |
+              $TYPE{..., APIKey: "...", ...}
+      - pattern-not: |
+          $TYPE{..., Password: "", ...}
+      - pattern-not: |
+          $TYPE{..., Secret: "", ...}
+      - pattern-not: |
+          $TYPE{..., Token: "", ...}
+      - pattern-not: |
+          $TYPE{..., APIKey: "", ...}
+      - pattern-not: |
+          &$TYPE{..., Password: "", ...}
+      - pattern-not: |
+          &$TYPE{..., Secret: "", ...}
+      - pattern-not: |
+          &$TYPE{..., Token: "", ...}
+      - pattern-not: |
+          &$TYPE{..., APIKey: "", ...}
+    message: >-
+      A struct literal contains a hardcoded credential in a field named
+      Password, Secret, Token, or APIKey. Store credentials in environment
+      variables or a secrets manager rather than in source code.
+    languages: [go]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-798: Use of Hard-coded Credentials"
+      owasp: "A07:2021 - Identification and Authentication Failures"
+      confidence: MEDIUM
+
+  # ──────────────────────────────────────────────
+  # 8. Unhandled Errors from Security Operations
+  # ──────────────────────────────────────────────
+  - id: go-unhandled-error-tls
+    patterns:
+      - pattern-either:
+          - pattern: |
+              tls.Dial(...)
+          - pattern: |
+              tls.DialWithDialer(...)
+          - pattern: |
+              $CONN.Handshake()
+          - pattern: |
+              $CONN.VerifyHostname(...)
+    pattern-not-inside: |
+      $X, $ERR := ...
+      ...
+    pattern-not-inside: |
+      $X, $ERR = ...
+      ...
+    pattern-not-inside: |
+      if $ERR := ...; $ERR != nil { ... }
+    message: >-
+      The error returned by a TLS operation is not being checked. Ignoring
+      errors from TLS handshakes, dial operations, or hostname verification
+      can silently accept invalid or forged certificates. Always check and
+      handle errors from TLS operations.
+    languages: [go]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-390: Detection of Error Condition Without Action"
+      owasp: "A07:2021 - Identification and Authentication Failures"
+      confidence: MEDIUM
+
+  - id: go-unhandled-error-crypto
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $CIPHER.Seal(...)
+          - pattern: |
+              $CIPHER.Open(...)
+          - pattern: |
+              rsa.DecryptPKCS1v15(...)
+          - pattern: |
+              rsa.DecryptOAEP(...)
+          - pattern: |
+              rsa.SignPKCS1v15(...)
+          - pattern: |
+              rsa.SignPSS(...)
+          - pattern: |
+              rsa.VerifyPKCS1v15(...)
+          - pattern: |
+              rsa.VerifyPSS(...)
+          - pattern: |
+              ecdsa.Sign(...)
+          - pattern: |
+              x509.ParseCertificate(...)
+          - pattern: |
+              x509.ParseCertificates(...)
+    pattern-not-inside: |
+      $X, $ERR := ...
+      ...
+    pattern-not-inside: |
+      $X, $ERR = ...
+      ...
+    pattern-not-inside: |
+      if $ERR := ...; $ERR != nil { ... }
+    message: >-
+      The error returned by a cryptographic operation is not being checked.
+      Ignoring errors from encryption, decryption, signing, verification,
+      or certificate parsing can lead to silent security failures. Always
+      check and handle errors from cryptographic operations.
+    languages: [go]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-390: Detection of Error Condition Without Action"
+      owasp: "A02:2021 - Cryptographic Failures"
+      confidence: MEDIUM
+
+  - id: go-unhandled-error-auth
+    patterns:
+      - pattern-either:
+          - pattern: |
+              bcrypt.CompareHashAndPassword(...)
+          - pattern: |
+              bcrypt.GenerateFromPassword(...)
+          - pattern: |
+              subtle.ConstantTimeCompare(...)
+    pattern-not-inside: |
+      $X, $ERR := ...
+      ...
+    pattern-not-inside: |
+      $X, $ERR = ...
+      ...
+    pattern-not-inside: |
+      $ERR := ...
+      ...
+    pattern-not-inside: |
+      $ERR = ...
+      ...
+    pattern-not-inside: |
+      if $ERR := ...; $ERR != nil { ... }
+    pattern-not-inside: |
+      if ... != nil { ... }
+    message: >-
+      The result or error from an authentication-related operation is not
+      being checked. Ignoring return values from bcrypt comparison or HMAC
+      comparison functions can lead to authentication bypasses. Always check
+      the error or return value from authentication operations.
+    languages: [go]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-390: Detection of Error Condition Without Action"
+      owasp: "A07:2021 - Identification and Authentication Failures"
+      confidence: MEDIUM

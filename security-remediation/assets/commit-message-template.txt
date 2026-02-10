@@ -1,0 +1,27 @@
+fix(security): [brief description of security fix]
+
+Security Issue: [CVE/CWE or internal reference]
+Severity: [Critical/High/Medium/Low]
+
+Description:
+[Detailed description of the vulnerability that was fixed]
+
+Changes:
+- [Change 1: what was modified and why]
+- [Change 2: what was modified and why]
+- [Change 3: what was modified and why]
+
+Impact:
+[Describe what this fix prevents or mitigates]
+
+Testing:
+- [Test 1 performed]
+- [Test 2 performed]
+
+References:
+- Audit Report: [link or reference]
+- OWASP: [relevant guideline]
+- Related Issue: [issue number or link]
+
+Reviewed-by: [reviewer names if applicable]
+Security-Approved-by: [security team member if applicable]
