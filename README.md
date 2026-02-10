@@ -4,8 +4,8 @@
 
 ## Wat doen deze skills?
 
-- **security-check**: Geautomatiseerde security scans met Semgrep, Trivy en Gitleaks. Categoriseert findings per OWASP Top 10, normaliseert severity levels, en genereert JSON/HTML rapporten.
-- **security-fix**: Past fixes toe op basis van check-resultaten. Automatische dependency updates, configuratie-fixes, code-patches via Claude's Edit tool, en PR-creatie.
+- **security-check**: Geautomatiseerde security scans met Semgrep, Trivy en Gitleaks. Categoriseert findings per OWASP Top 10, normaliseert severity levels, en genereert JSON/HTML rapporten. Bevat framework-specifieke regels voor React, Next.js en Supabase.
+- **security-fix**: Past fixes toe op basis van check-resultaten. Automatische dependency updates, configuratie-fixes, code-patches via Claude's Edit tool, en PR-creatie. Inclusief fix-patronen voor React XSS, Supabase service_role misuse, NEXT_PUBLIC_ secrets en RLS configuratie.
 
 ## Installatie
 
@@ -57,6 +57,21 @@ De twee skills communiceren via een JSON-contract:
   - `dependency` -- dependency updates via package managers
   - `manual` -- code fixes via Claude's Edit tool
 
+## Custom Semgrep Rules
+
+| Regelset | Taal/Framework | Rules | Voorbeelden |
+|----------|---------------|-------|-------------|
+| `python_rules.yaml` | Python | 4 | SQL injection, eval, unsafe YAML, weak random |
+| `javascript_rules.yaml` | JS/TS | 8 | XSS, command injection, prototype pollution, path traversal |
+| `react_nextjs_rules.yaml` | React/Next.js/Supabase | 11 | Unsafe innerHTML, service_role exposure, RLS, hardcoded keys |
+| `java_rules.yaml` | Java | 4 | SQL injection, XXE, insecure deserialization |
+| `go_rules.yaml` | Go | 5 | SQL injection, insecure TLS, SSRF |
+
+De React/Next.js/Supabase regelset dekt:
+- **React**: Unsafe inner HTML injection, javascript: protocol URLs, target="_blank" zonder noopener
+- **Next.js**: Secrets in NEXT_PUBLIC_ env vars, API routes zonder auth, unsanitized query params
+- **Supabase**: service_role client-side exposure, RPC injection, admin auth misuse, hardcoded keys, mutaties zonder RLS
+
 ## Structuur
 
 ```
@@ -72,6 +87,7 @@ cc-security-skill/
 │   ├── assets/semgrep_rules/
 │   │   ├── python_rules.yaml
 │   │   ├── javascript_rules.yaml
+│   │   ├── react_nextjs_rules.yaml
 │   │   ├── java_rules.yaml
 │   │   └── go_rules.yaml
 │   └── references/
