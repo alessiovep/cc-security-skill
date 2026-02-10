@@ -1,78 +1,78 @@
 # Claude Security Skills
 
-> Security check en fix skills voor Claude Code
+> Security check and fix skills for Claude Code
 
-## Wat doen deze skills?
+## What do these skills do?
 
-- **security-check**: Geautomatiseerde security scans met Semgrep, Trivy en Gitleaks. Categoriseert findings per OWASP Top 10, normaliseert severity levels, en genereert JSON/HTML rapporten. Bevat framework-specifieke regels voor React, Next.js en Supabase.
-- **security-fix**: Past fixes toe op basis van check-resultaten. Automatische dependency updates, configuratie-fixes, code-patches via Claude's Edit tool, en PR-creatie. Inclusief fix-patronen voor React XSS, Supabase service_role misuse, NEXT_PUBLIC_ secrets en RLS configuratie.
+- **security-check**: Automated security scans using Semgrep, Trivy, and Gitleaks. Categorizes findings by OWASP Top 10, normalizes severity levels, and generates JSON/HTML reports. Includes framework-specific rules for React, Next.js, and Supabase.
+- **security-fix**: Applies fixes based on check results. Automatic dependency updates, configuration patches, code fixes via Claude's Edit tool, and PR creation. Includes fix patterns for React XSS, Supabase service_role misuse, NEXT_PUBLIC_ secrets, and RLS configuration.
 
-## Installatie
+## Installation
 
 ```bash
-# Clone de repository
+# Clone the repository
 git clone https://github.com/alessiovep/cc-security-skill.git
 
-# Kopieer skills naar Claude Code
+# Copy skills to Claude Code
 cp -r cc-security-skill/security-check ~/.claude/skills/
 cp -r cc-security-skill/security-fix ~/.claude/skills/
 ```
 
 ## Prerequisites
 
-| Tool | Doel | Installatie |
-|------|------|-------------|
+| Tool | Purpose | Installation |
+|------|---------|--------------|
 | Semgrep | Static analysis | `pip install semgrep` |
 | Trivy | Dependency scanning | `brew install trivy` |
 | Gitleaks | Secret detection | `brew install gitleaks` |
-| gh CLI | PR creatie (GitHub) | `brew install gh` |
+| gh CLI | PR creation (GitHub) | `brew install gh` |
 | pip-audit | Python deps | `pip install pip-audit` |
 
-> **Note:** Geen van de tools is verplicht. De skills werken met wat beschikbaar is en vallen terug op Claude's eigen analyse.
+> **Note:** None of the tools are required. The skills work with whatever is available and fall back to Claude's own analysis.
 
-## Gebruik
+## Usage
 
-Voorbeelden van commando's en zinnen die je kunt gebruiken:
+Examples of commands and phrases you can use:
 
-- "Voer een security check uit op dit project"
-- "Scan deze codebase op kwetsbaarheden"
-- "Fix de kritieke bevindingen uit de laatste check"
-- "Maak een PR met de security fixes"
-- `/security-check` en `/security-fix` als slash commands
+- "Run a security check on this project"
+- "Scan this codebase for vulnerabilities"
+- "Fix the critical findings from the last check"
+- "Create a PR with the security fixes"
+- `/security-check` and `/security-fix` as slash commands
 
-## Architectuur
+## Architecture
 
-De twee skills communiceren via een JSON-contract:
+The two skills communicate via a JSON contract:
 
-- **Check** produceert een JSON-rapport met:
-  - `version` -- schemaversie van het rapport
-  - `vulnerabilities[]` -- lijst van bevindingen, elk met:
-    - `id` -- unieke identifier
-    - `severity` -- genormaliseerd level (CRITICAL, HIGH, MEDIUM, LOW)
-    - `fix_type` -- type fix (`auto`, `manual`, `dependency`)
-    - `fix_hint` -- instructie of suggestie voor de fix
+- **Check** produces a JSON report with:
+  - `version` -- report schema version
+  - `vulnerabilities[]` -- list of findings, each with:
+    - `id` -- unique identifier
+    - `severity` -- normalized level (CRITICAL, HIGH, MEDIUM, LOW)
+    - `fix_type` -- fix type (`auto`, `manual`, `dependency`)
+    - `fix_hint` -- instruction or suggestion for the fix
 
-- **Fix** consumeert dit rapport en past fixes toe op basis van `fix_type`:
-  - `auto` -- configuratie-patches
+- **Fix** consumes this report and applies fixes based on `fix_type`:
+  - `auto` -- configuration patches
   - `dependency` -- dependency updates via package managers
   - `manual` -- code fixes via Claude's Edit tool
 
 ## Custom Semgrep Rules
 
-| Regelset | Taal/Framework | Rules | Voorbeelden |
-|----------|---------------|-------|-------------|
+| Ruleset | Language/Framework | Rules | Examples |
+|---------|-------------------|-------|----------|
 | `python_rules.yaml` | Python | 4 | SQL injection, eval, unsafe YAML, weak random |
 | `javascript_rules.yaml` | JS/TS | 8 | XSS, command injection, prototype pollution, path traversal |
 | `react_nextjs_rules.yaml` | React/Next.js/Supabase | 11 | Unsafe innerHTML, service_role exposure, RLS, hardcoded keys |
 | `java_rules.yaml` | Java | 4 | SQL injection, XXE, insecure deserialization |
 | `go_rules.yaml` | Go | 5 | SQL injection, insecure TLS, SSRF |
 
-De React/Next.js/Supabase regelset dekt:
-- **React**: Unsafe inner HTML injection, javascript: protocol URLs, target="_blank" zonder noopener
-- **Next.js**: Secrets in NEXT_PUBLIC_ env vars, API routes zonder auth, unsanitized query params
-- **Supabase**: service_role client-side exposure, RPC injection, admin auth misuse, hardcoded keys, mutaties zonder RLS
+The React/Next.js/Supabase ruleset covers:
+- **React**: Unsafe inner HTML injection, javascript: protocol URLs, target="_blank" without noopener
+- **Next.js**: Secrets in NEXT_PUBLIC_ env vars, API routes without auth, unsanitized query params
+- **Supabase**: service_role client-side exposure, RPC injection, admin auth misuse, hardcoded keys, mutations without RLS
 
-## Structuur
+## Structure
 
 ```
 cc-security-skill/
@@ -104,9 +104,9 @@ cc-security-skill/
         └── commit-message-template.txt
 ```
 
-## Bijdragen
+## Contributing
 
-1. Fork de repository
-2. Maak een feature branch (`git checkout -b feature/mijn-feature`)
-3. Commit met een duidelijke beschrijving
-4. Open een Pull Request
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/my-feature`)
+3. Commit with a clear description
+4. Open a Pull Request
