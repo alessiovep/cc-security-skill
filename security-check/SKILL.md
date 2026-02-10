@@ -85,6 +85,64 @@ Grep: Access-Control-Allow-Origin.*\*  -- CORS wildcard
 Grep: CORS.*\*
 ```
 
+### Security Headers & Middleware patronen
+
+```
+Grep: helmet                     -- Express.js security headers (moet aanwezig zijn)
+Grep: SecurityMiddleware         -- Django security middleware
+Grep: Talisman                   -- Flask security headers
+Grep: Content-Security-Policy    -- CSP header configuratie
+Grep: Strict-Transport-Security  -- HSTS header
+Grep: X-Frame-Options            -- Clickjacking bescherming
+```
+
+### JWT & Authenticatie patronen
+
+```
+Grep: jsonwebtoken|jose|PyJWT    -- JWT libraries in gebruik
+Grep: algorithm.*none            -- JWT algorithm:none aanval
+Grep: expiresIn|exp              -- JWT expiry (moet aanwezig zijn)
+Grep: express-rate-limit|flask-limiter|ratelimit  -- Rate limiting (moet aanwezig zijn op auth endpoints)
+```
+
+### File Upload & Input patronen
+
+```
+Grep: multer|formidable|busboy   -- Node.js file upload libraries
+Grep: FileStorage|werkzeug       -- Python file upload
+Grep: MultipartFile              -- Java file upload
+Grep: (zod|joi|yup|pydantic)     -- Input validatie schemas (moet aanwezig zijn)
+```
+
+### GraphQL patronen
+
+```
+Grep: introspection              -- GraphQL introspection (moet disabled zijn in productie)
+Grep: depthLimit|complexityLimit -- GraphQL query depth limiet (moet aanwezig zijn)
+Grep: graphql.*batch             -- GraphQL batching attacks
+```
+
+### Client-side Security patronen
+
+```
+Grep: addEventListener.*message  -- postMessage handler (controleer origin validatie)
+Grep: postMessage\(.*\*          -- postMessage met wildcard target origin
+Grep: localStorage.*token|sessionStorage.*token  -- Sensitive data in browser storage
+Grep: new WebSocket\(.*ws://     -- Onveilige WebSocket (moet wss:// zijn)
+```
+
+### Framework-specifieke patronen
+
+```
+Grep: csrf_exempt                -- Django CSRF uitgeschakeld
+Grep: ALLOWED_HOSTS.*\*          -- Django wildcard hosts
+Grep: mark_safe                  -- Django XSS via mark_safe
+Grep: render_template_string     -- Flask SSTI vector
+Grep: v-html                     -- Vue.js XSS vector
+Grep: bypassSecurityTrust        -- Angular security bypass
+Grep: \{@html                    -- Svelte XSS vector
+```
+
 ### React / Next.js / Supabase patronen
 
 Bij React/Next.js/Supabase projecten, voeg deze extra Grep patronen toe:
@@ -163,6 +221,30 @@ Dit produceert een JSON rapport met het v2.0 schema (zie references/tool-output-
 python <skill_path>/scripts/generate_report.py <json_rapport_pad>
 ```
 
+### SARIF rapport (voor CI/CD integratie)
+```bash
+python <skill_path>/scripts/generate_sarif.py <json_rapport_pad> [--output sarif_output.json]
+```
+Dit produceert een SARIF v2.1.0 rapport dat geupload kan worden naar GitHub Code Scanning:
+```bash
+gh api repos/{owner}/{repo}/code-scanning/sarifs -X POST -F "sarif=@sarif_output.json"
+```
+
+### Delta reporting (voor PR reviews)
+```bash
+python <skill_path>/scripts/generate_sarif.py <json_rapport_pad> --baseline <vorig_rapport.json> [--output delta.json]
+```
+Dit vergelijkt het huidige rapport met een baseline en markeert findings als NEW, FIXED, of EXISTING. Ideaal voor PR reviews waar alleen nieuwe issues relevant zijn.
+
+### False positive management
+Maak een `.security-ignore` bestand in de project root om bekende false positives te filteren:
+```
+# Formaat: file:line:rule-id # reden
+src/test/mock.py:15:python-eval-usage # Test mock, geen user input
+config/dev.py:3:python-debug-enabled # Alleen dev configuratie
+```
+Het script filtert deze findings automatisch uit het rapport en rapporteert het aantal genegeerde findings apart.
+
 ## Stap 7: Volgende stappen aanbevelen
 
 Na het rapport, stel voor:
@@ -188,6 +270,7 @@ Het audit rapport dat de remediation skill consumeert:
       "file": "pad/naar/bestand",
       "line": 45,
       "message": "beschrijving",
+      "cwe": "CWE-79",
       "owasp_category": "A0X:2021 - Naam",
       "fix_type": "auto|manual|dependency",
       "fix_hint": "hoe te fixen"
@@ -205,11 +288,45 @@ Het audit rapport dat de remediation skill consumeert:
 
 ## Custom Semgrep Rules
 
-Beschikbare regelsets in `assets/semgrep_rules/`:
-- `python_rules.yaml` - Python-specifiek (SQL injection, eval, unsafe YAML, weak random)
-- `javascript_rules.yaml` - JS/TS (XSS, command injection, prototype pollution)
-- `react_nextjs_rules.yaml` - React/Next.js/Supabase (dangerouslySetInnerHTML, service_role exposure, RLS, hardcoded keys)
-- `java_rules.yaml` - Java (SQL injection, XXE, insecure deserialization)
-- `go_rules.yaml` - Go (SQL injection, insecure TLS, SSRF)
+Beschikbare regelsets in `assets/semgrep_rules/` (**137 regels totaal over 8 bestanden**):
+
+### Taalspecifieke regels
+- `python_rules.yaml` (8 regels) - SQL injection, eval/exec, unsafe YAML, weak random, hardcoded keys, CSRF, open redirect, insecure cookies
+- `javascript_rules.yaml` (8 regels) - XSS, command injection, prototype pollution, path traversal
+- `java_rules.yaml` (20 regels) - SQL injection, XXE, insecure deserialization, weak crypto, insecure random
+- `go_rules.yaml` (19 regels) - SQL injection, command injection, insecure TLS, SSRF, weak crypto
+
+### Framework-specifieke regels
+- `react_nextjs_rules.yaml` (11 regels) - React unsafe HTML rendering, JavaScript URLs, target blank, NEXT_PUBLIC secrets, Supabase service_role/RLS/RPC
+- `framework_rules.yaml` (19 regels) - Express.js (helmet, CORS, body-parser, session), Django (csrf_exempt, ALLOWED_HOSTS, DEBUG, mark_safe), Flask (SSTI, send_file, debug), Dockerfile (root user, piped installs, secrets, latest tag), GitHub Actions (expression injection, pull_request_target, permissions)
+
+### Web Security en API regels
+- `web_security_rules.yaml` (28 regels) - Security headers, JWT security (algorithm confusion, missing expiry), file upload validatie, mass assignment, SSTI, password hashing, rate limiting, race conditions
+- `client_api_rules.yaml` (24 regels) - postMessage origin validatie, localStorage sensitive data, WebSocket security, GraphQL introspection/depth, verbose error responses, OAuth state validatie, Angular/Vue/Svelte XSS vectors, ReDoS patronen
+
+### Alle gedekte kwetsbaarheidscategorieen
+
+| Categorie | Regels | OWASP |
+|-----------|--------|-------|
+| SQL/NoSQL Injection | 15+ | A03:2021 |
+| XSS (DOM, stored, reflected, framework) | 12+ | A03:2021 |
+| Command Injection | 5+ | A03:2021 |
+| SSTI (Server-Side Template Injection) | 4 | A03:2021 |
+| Security Headers (CSP, HSTS, X-Frame) | 6 | A05:2021 |
+| JWT Security | 5 | A07:2021 |
+| File Upload Validatie | 4 | A04:2021 |
+| Mass Assignment | 3 | A01:2021 |
+| Password Hashing | 4 | A02:2021 |
+| GraphQL Security | 3 | A05:2021 |
+| Client-side (postMessage, WebSocket) | 5 | A01:2021 |
+| OAuth/Auth | 4 | A07:2021 |
+| Weak Crypto | 8+ | A02:2021 |
+| Insecure Deserialization | 3+ | A08:2021 |
+| SSRF | 3+ | A10:2021 |
+| Path Traversal | 3+ | A01:2021 |
+| Rate Limiting | 2 | A07:2021 |
+| ReDoS | 2 | A03:2021 |
+| Secrets/Hardcoded Keys | 5+ | A02:2021 |
+| Misconfiguration (DEBUG, CORS, TLS) | 10+ | A05:2021 |
 
 Gebruik met: `semgrep --config=<skill_path>/assets/semgrep_rules/ <target_path>`

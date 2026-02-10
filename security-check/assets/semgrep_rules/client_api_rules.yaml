@@ -1,0 +1,753 @@
+rules:
+  # ══════════════════════════════════════════════
+  # CLIENT-SIDE SECURITY RULES
+  # ══════════════════════════════════════════════
+
+  # ──────────────────────────────────────────────
+  # 1. postmessage-no-origin-check: addEventListener('message') without origin validation
+  # ──────────────────────────────────────────────
+  - id: postmessage-no-origin-check
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      postMessage event listener detected without origin validation. Without
+      checking event.origin, any window (including attacker-controlled iframes
+      or popups) can send messages to your application. Always validate
+      event.origin against an allowlist of trusted origins before processing
+      the message data.
+    metadata:
+      category: security
+      owasp: "A07:2021 - Identification and Authentication Failures"
+      cwe: "CWE-346: Origin Validation Error"
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: |
+              window.addEventListener('message', function $FUNC($EVENT) {
+                ...
+              })
+          - pattern: |
+              window.addEventListener('message', ($EVENT) => {
+                ...
+              })
+          - pattern: |
+              window.addEventListener("message", function $FUNC($EVENT) {
+                ...
+              })
+          - pattern: |
+              window.addEventListener("message", ($EVENT) => {
+                ...
+              })
+      - pattern-not: |
+          window.addEventListener('message', function $FUNC($EVENT) {
+            ...
+            $EVENT.origin
+            ...
+          })
+      - pattern-not: |
+          window.addEventListener('message', ($EVENT) => {
+            ...
+            $EVENT.origin
+            ...
+          })
+      - pattern-not: |
+          window.addEventListener("message", function $FUNC($EVENT) {
+            ...
+            $EVENT.origin
+            ...
+          })
+      - pattern-not: |
+          window.addEventListener("message", ($EVENT) => {
+            ...
+            $EVENT.origin
+            ...
+          })
+
+  # ──────────────────────────────────────────────
+  # 2. postmessage-wildcard-origin: postMessage with '*' target origin
+  # ──────────────────────────────────────────────
+  - id: postmessage-wildcard-origin
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      postMessage() called with wildcard '*' as target origin. This allows any
+      window to receive the message, potentially leaking sensitive data to
+      untrusted origins. Specify the exact target origin instead of '*' to
+      ensure messages are only delivered to trusted recipients.
+    metadata:
+      category: security
+      owasp: "A01:2021 - Broken Access Control"
+      cwe: "CWE-346: Origin Validation Error"
+      confidence: HIGH
+    pattern-either:
+      - pattern: $TARGET.postMessage($DATA, '*')
+      - pattern: $TARGET.postMessage($DATA, "*")
+      - pattern: window.parent.postMessage($DATA, '*')
+      - pattern: window.parent.postMessage($DATA, "*")
+      - pattern: window.opener.postMessage($DATA, '*')
+      - pattern: window.opener.postMessage($DATA, "*")
+
+  # ──────────────────────────────────────────────
+  # 3. sensitive-data-local-storage: Storing sensitive data in localStorage/sessionStorage
+  # ──────────────────────────────────────────────
+  - id: sensitive-data-local-storage
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Sensitive data (tokens, passwords, secrets, or keys) is being stored in
+      localStorage or sessionStorage. Browser storage is accessible to any
+      JavaScript running on the same origin, making it vulnerable to XSS
+      attacks. Store sensitive tokens in httpOnly cookies or use server-side
+      session management instead.
+    metadata:
+      category: security
+      owasp: "A02:2021 - Cryptographic Failures"
+      cwe: "CWE-922: Insecure Storage of Sensitive Information"
+      confidence: MEDIUM
+    pattern-either:
+      - pattern: localStorage.setItem("=~/.*[Tt]oken.*/", ...)
+      - pattern: localStorage.setItem("=~/.*[Pp]assword.*/", ...)
+      - pattern: localStorage.setItem("=~/.*[Ss]ecret.*/", ...)
+      - pattern: localStorage.setItem("=~/.*[Kk]ey.*/", ...)
+      - pattern: localStorage.setItem("=~/.*[Cc]redential.*/", ...)
+      - pattern: sessionStorage.setItem("=~/.*[Tt]oken.*/", ...)
+      - pattern: sessionStorage.setItem("=~/.*[Pp]assword.*/", ...)
+      - pattern: sessionStorage.setItem("=~/.*[Ss]ecret.*/", ...)
+      - pattern: sessionStorage.setItem("=~/.*[Kk]ey.*/", ...)
+      - pattern: sessionStorage.setItem("=~/.*[Cc]redential.*/", ...)
+      - pattern: localStorage.setItem('=~/.*[Tt]oken.*/', ...)
+      - pattern: localStorage.setItem('=~/.*[Pp]assword.*/', ...)
+      - pattern: localStorage.setItem('=~/.*[Ss]ecret.*/', ...)
+      - pattern: localStorage.setItem('=~/.*[Kk]ey.*/', ...)
+      - pattern: sessionStorage.setItem('=~/.*[Tt]oken.*/', ...)
+      - pattern: sessionStorage.setItem('=~/.*[Pp]assword.*/', ...)
+      - pattern: sessionStorage.setItem('=~/.*[Ss]ecret.*/', ...)
+      - pattern: sessionStorage.setItem('=~/.*[Kk]ey.*/', ...)
+
+  # ──────────────────────────────────────────────
+  # 4. websocket-no-origin-check: WebSocket message handler without origin check
+  # ──────────────────────────────────────────────
+  - id: websocket-no-origin-check
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      WebSocket connection opened without apparent origin validation on the
+      server side. WebSocket connections are not protected by the same-origin
+      policy. Verify the Origin header on the server during the WebSocket
+      handshake to prevent Cross-Site WebSocket Hijacking (CSWSH) attacks.
+    metadata:
+      category: security
+      owasp: "A07:2021 - Identification and Authentication Failures"
+      cwe: "CWE-346: Origin Validation Error"
+      confidence: LOW
+    pattern-either:
+      - patterns:
+          - pattern: |
+              $WS.on('connection', function $FUNC($SOCKET, $REQ) {
+                ...
+              })
+          - pattern-not: |
+              $WS.on('connection', function $FUNC($SOCKET, $REQ) {
+                ...
+                $REQ.headers.origin
+                ...
+              })
+      - patterns:
+          - pattern: |
+              $WS.on('connection', ($SOCKET, $REQ) => {
+                ...
+              })
+          - pattern-not: |
+              $WS.on('connection', ($SOCKET, $REQ) => {
+                ...
+                $REQ.headers.origin
+                ...
+              })
+
+  # ──────────────────────────────────────────────
+  # 5. insecure-websocket: ws:// instead of wss://
+  # ──────────────────────────────────────────────
+  - id: insecure-websocket
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Insecure WebSocket connection using ws:// detected. Data transmitted
+      over ws:// is unencrypted and vulnerable to eavesdropping and
+      man-in-the-middle attacks. Use wss:// (WebSocket Secure) to encrypt
+      the connection with TLS.
+    metadata:
+      category: security
+      owasp: "A02:2021 - Cryptographic Failures"
+      cwe: "CWE-319: Cleartext Transmission of Sensitive Information"
+      confidence: HIGH
+    pattern-either:
+      - pattern: |
+          new WebSocket("=~/^ws:\/\/.*$/")
+      - pattern: |
+          new WebSocket('=~/^ws:\/\/.*$/')
+      - pattern: |
+          new WebSocket(`=~/^ws:\/\/.*$/`)
+
+  # ──────────────────────────────────────────────
+  # 6. csp-unsafe-directives: unsafe-inline or unsafe-eval in CSP
+  # ──────────────────────────────────────────────
+  - id: csp-unsafe-directives
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Content Security Policy with unsafe-inline or unsafe-eval directive
+      detected. These directives weaken XSS protections. Use nonce-based or
+      hash-based CSP directives instead to maintain protection while allowing
+      necessary inline resources.
+    metadata:
+      category: security
+      owasp: "A05:2021 - Security Misconfiguration"
+      cwe: "CWE-693: Protection Mechanism Failure"
+      confidence: MEDIUM
+    pattern-either:
+      - pattern: $RES.setHeader("Content-Security-Policy", "=~/.*unsafe-inline.*/")
+      - pattern: $RES.setHeader("Content-Security-Policy", "=~/.*unsafe-eval.*/")
+      - pattern: $RES.setHeader('Content-Security-Policy', '=~/.*unsafe-inline.*/')
+      - pattern: $RES.setHeader('Content-Security-Policy', '=~/.*unsafe-eval.*/')
+
+  # ══════════════════════════════════════════════
+  # API SECURITY RULES
+  # ══════════════════════════════════════════════
+
+  # ──────────────────────────────────────────────
+  # 7. graphql-introspection-enabled: GraphQL introspection enabled in production
+  # ──────────────────────────────────────────────
+  - id: graphql-introspection-enabled
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      GraphQL introspection is explicitly enabled. Introspection allows
+      anyone to query the full schema, exposing all types, fields, and
+      relationships. Disable introspection in production by setting
+      introspection: false in your GraphQL server configuration.
+    metadata:
+      category: security
+      owasp: "A05:2021 - Security Misconfiguration"
+      cwe: "CWE-200: Exposure of Sensitive Information to an Unauthorized Actor"
+      confidence: HIGH
+    pattern-either:
+      - pattern: "introspection: true"
+      - pattern: "new ApolloServer({..., introspection: true, ...})"
+
+  - id: graphql-introspection-enabled-python
+    languages: [python]
+    severity: WARNING
+    message: >-
+      GraphQL introspection is explicitly enabled. Introspection allows
+      anyone to query the full schema, exposing all types, fields, and
+      relationships. Disable introspection in production by setting
+      introspection to False in your GraphQL server configuration.
+    metadata:
+      category: security
+      owasp: "A05:2021 - Security Misconfiguration"
+      cwe: "CWE-200: Exposure of Sensitive Information to an Unauthorized Actor"
+      confidence: HIGH
+    pattern-either:
+      - pattern: introspection=True
+      - pattern: GraphQLView.as_view(..., graphiql=True, ...)
+
+  # ──────────────────────────────────────────────
+  # 8. graphql-no-depth-limit: GraphQL without query depth limiting
+  # ──────────────────────────────────────────────
+  - id: graphql-no-depth-limit
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      GraphQL server configured without query depth or complexity limits.
+      Without depth limiting, attackers can craft deeply nested queries that
+      cause excessive resource consumption (denial of service). Add
+      depthLimit or costAnalysis middleware to restrict query complexity.
+    metadata:
+      category: security
+      owasp: "A05:2021 - Security Misconfiguration"
+      cwe: "CWE-770: Allocation of Resources Without Limits or Throttling"
+      confidence: MEDIUM
+    patterns:
+      - pattern: |
+          new ApolloServer({..., validationRules: $RULES, ...})
+      - pattern-not: |
+          new ApolloServer({..., validationRules: [..., depthLimit(...), ...], ...})
+
+  # ──────────────────────────────────────────────
+  # 9. verbose-error-response: Stack traces in error responses
+  # ──────────────────────────────────────────────
+  - id: verbose-error-response-js
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Stack trace or detailed error information is being sent in the HTTP
+      response. Verbose error messages reveal internal implementation details,
+      file paths, and dependency versions that help attackers plan targeted
+      attacks. Return generic error messages to clients and log detailed
+      errors server-side only.
+    metadata:
+      category: security
+      owasp: "A05:2021 - Security Misconfiguration"
+      cwe: "CWE-209: Generation of Error Message Containing Sensitive Information"
+      confidence: MEDIUM
+    pattern-either:
+      - pattern: |
+          $RES.json({..., stack: $ERR.stack, ...})
+      - pattern: |
+          $RES.json({..., error: $ERR.stack, ...})
+      - pattern: |
+          $RES.json({..., message: $ERR.message, stack: $ERR.stack, ...})
+      - pattern: $RES.send($ERR.stack)
+      - pattern: |
+          $RES.status(...).json({..., stack: $ERR.stack, ...})
+      - pattern: $RES.status(...).send($ERR.stack)
+
+  - id: verbose-error-response-python
+    languages: [python]
+    severity: WARNING
+    message: >-
+      Traceback or detailed error information is being sent in the HTTP
+      response. Verbose error messages reveal internal implementation details,
+      file paths, and dependency versions that help attackers plan targeted
+      attacks. Return generic error messages to clients and log detailed
+      errors server-side only.
+    metadata:
+      category: security
+      owasp: "A05:2021 - Security Misconfiguration"
+      cwe: "CWE-209: Generation of Error Message Containing Sensitive Information"
+      confidence: MEDIUM
+    pattern-either:
+      - pattern: |
+          return jsonify({..., "error": traceback.format_exc(), ...})
+      - pattern: |
+          return jsonify({..., "traceback": traceback.format_exc(), ...})
+      - pattern: |
+          return jsonify({..., "stack": traceback.format_exc(), ...})
+      - pattern: |
+          return Response(traceback.format_exc(), ...)
+      - pattern: |
+          return HttpResponse(traceback.format_exc(), ...)
+
+  # ──────────────────────────────────────────────
+  # 10. sensitive-data-in-url: Passwords/tokens in URL query parameters
+  # ──────────────────────────────────────────────
+  - id: sensitive-data-in-url-js
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Sensitive data (password, token, secret) is being read from URL query
+      parameters. Query parameters are logged in server access logs, browser
+      history, and HTTP Referer headers. Transmit sensitive data in request
+      bodies or authorization headers instead.
+    metadata:
+      category: security
+      owasp: "A02:2021 - Cryptographic Failures"
+      cwe: "CWE-598: Use of GET Request Method With Sensitive Query Strings"
+      confidence: MEDIUM
+    pattern-either:
+      - pattern: req.query.password
+      - pattern: req.query.token
+      - pattern: req.query.secret
+      - pattern: req.query.api_key
+      - pattern: req.query.apiKey
+      - pattern: req.query.access_token
+      - pattern: req.query.accessToken
+      - pattern: req.query.auth_token
+      - pattern: req.query.client_secret
+      - pattern: req.query.private_key
+
+  - id: sensitive-data-in-url-python
+    languages: [python]
+    severity: WARNING
+    message: >-
+      Sensitive data (password, token, secret) is being read from URL query
+      parameters. Query parameters are logged in server access logs, browser
+      history, and HTTP Referer headers. Transmit sensitive data in request
+      bodies or authorization headers instead.
+    metadata:
+      category: security
+      owasp: "A02:2021 - Cryptographic Failures"
+      cwe: "CWE-598: Use of GET Request Method With Sensitive Query Strings"
+      confidence: MEDIUM
+    pattern-either:
+      - pattern: request.args.get("password", ...)
+      - pattern: request.args.get("token", ...)
+      - pattern: request.args.get("secret", ...)
+      - pattern: request.args.get("api_key", ...)
+      - pattern: request.args.get("access_token", ...)
+      - pattern: request.args.get("auth_token", ...)
+      - pattern: request.args.get("client_secret", ...)
+      - pattern: request.args.get("private_key", ...)
+      - pattern: request.args["password"]
+      - pattern: request.args["token"]
+      - pattern: request.args["secret"]
+      - pattern: request.args["api_key"]
+      - pattern: request.args["access_token"]
+
+  # ══════════════════════════════════════════════
+  # OAUTH SECURITY RULES
+  # ══════════════════════════════════════════════
+
+  # ──────────────────────────────────────────────
+  # 11. oauth-no-state-validation: OAuth state parameter not validated
+  # ──────────────────────────────────────────────
+  - id: oauth-no-state-validation-js
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      OAuth callback handler does not validate the state parameter. The state
+      parameter is a CSRF protection mechanism that ensures the authorization
+      response matches the request initiated by the user. Without state
+      validation, an attacker can forge authorization responses to link their
+      account or steal access tokens. Validate that the state parameter in
+      the callback matches the one stored in the user's session.
+    metadata:
+      category: security
+      owasp: "A07:2021 - Identification and Authentication Failures"
+      cwe: "CWE-352: Cross-Site Request Forgery (CSRF)"
+      confidence: MEDIUM
+    patterns:
+      - pattern-either:
+          - pattern: req.query.code
+          - pattern: |
+              const { code, ... } = req.query;
+      - pattern-not-inside: |
+          ...
+          req.query.state
+          ...
+      - pattern-not-inside: |
+          ...
+          const { code, state, ... } = req.query;
+          ...
+
+  - id: oauth-no-state-validation-python
+    languages: [python]
+    severity: ERROR
+    message: >-
+      OAuth callback handler does not validate the state parameter. The state
+      parameter is a CSRF protection mechanism that ensures the authorization
+      response matches the request initiated by the user. Without state
+      validation, an attacker can forge authorization responses. Validate
+      that the state parameter in the callback matches the one stored in the
+      user's session.
+    metadata:
+      category: security
+      owasp: "A07:2021 - Identification and Authentication Failures"
+      cwe: "CWE-352: Cross-Site Request Forgery (CSRF)"
+      confidence: MEDIUM
+    patterns:
+      - pattern-either:
+          - pattern: request.args.get("code")
+          - pattern: request.args["code"]
+      - pattern-not-inside: |
+          ...
+          request.args.get("state")
+          ...
+      - pattern-not-inside: |
+          ...
+          request.args["state"]
+          ...
+
+  # ──────────────────────────────────────────────
+  # 12. client-secret-in-frontend: Client secrets exposed in client-side code
+  # ──────────────────────────────────────────────
+  - id: client-secret-in-frontend
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      OAuth client secret or API secret is exposed in client-side code via
+      NEXT_PUBLIC_ environment variable or window object assignment. Client
+      secrets must remain server-side as they are visible in the browser's
+      JavaScript bundle. Use the Backend for Frontend (BFF) pattern or
+      server-side token exchange to keep secrets secure.
+    metadata:
+      category: security
+      owasp: "A02:2021 - Cryptographic Failures"
+      cwe: "CWE-200: Exposure of Sensitive Information to an Unauthorized Actor"
+      confidence: HIGH
+    pattern-either:
+      - pattern: process.env.NEXT_PUBLIC_CLIENT_SECRET
+      - pattern: process.env.NEXT_PUBLIC_API_SECRET
+      - pattern: process.env.NEXT_PUBLIC_SECRET_KEY
+      - pattern: process.env.NEXT_PUBLIC_OAUTH_SECRET
+      - pattern: process.env.NEXT_PUBLIC_AUTH_SECRET
+      - pattern: process.env.NEXT_PUBLIC_JWT_SECRET
+      - pattern: process.env.NEXT_PUBLIC_PRIVATE_KEY
+      - pattern: window.clientSecret = ...
+      - pattern: window.apiSecret = ...
+
+  # ══════════════════════════════════════════════
+  # ADDITIONAL FRAMEWORK XSS RULES
+  # ══════════════════════════════════════════════
+
+  # ──────────────────────────────────────────────
+  # 13. angular-bypass-security: Angular bypassSecurityTrust*() methods
+  # ──────────────────────────────────────────────
+  - id: angular-bypass-security
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Angular DomSanitizer bypass method detected. bypassSecurityTrustHtml(),
+      bypassSecurityTrustScript(), bypassSecurityTrustUrl(),
+      bypassSecurityTrustResourceUrl(), and bypassSecurityTrustStyle() disable
+      Angular's built-in XSS sanitization. If the bypassed value contains
+      unsanitized user input, it creates an XSS vulnerability. Sanitize the
+      input before bypassing, or use Angular's safe binding mechanisms.
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-79: Improper Neutralization of Input During Web Page Generation"
+      confidence: HIGH
+    pattern-either:
+      - pattern: $SANITIZER.bypassSecurityTrustHtml(...)
+      - pattern: $SANITIZER.bypassSecurityTrustScript(...)
+      - pattern: $SANITIZER.bypassSecurityTrustUrl(...)
+      - pattern: $SANITIZER.bypassSecurityTrustResourceUrl(...)
+      - pattern: $SANITIZER.bypassSecurityTrustStyle(...)
+      - pattern: this.$PROP.bypassSecurityTrustHtml(...)
+      - pattern: this.$PROP.bypassSecurityTrustScript(...)
+      - pattern: this.$PROP.bypassSecurityTrustUrl(...)
+      - pattern: this.$PROP.bypassSecurityTrustResourceUrl(...)
+      - pattern: this.$PROP.bypassSecurityTrustStyle(...)
+
+  # ──────────────────────────────────────────────
+  # 14. vue-v-html-xss: Vue.js v-html directive with user input
+  # ──────────────────────────────────────────────
+  - id: vue-v-html-xss
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Vue.js v-html equivalent detected in render function. v-html renders
+      raw HTML and bypasses Vue's template escaping, creating XSS
+      vulnerabilities when used with user-controlled data. Use text
+      interpolation for displaying user content, or sanitize HTML with
+      DOMPurify before rendering.
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-79: Improper Neutralization of Input During Web Page Generation"
+      confidence: MEDIUM
+    pattern-either:
+      - pattern: "h($TAG, {domProps: {innerHTML: $VAL}})"
+      - pattern: "h($TAG, {domProps: {innerHTML: $VAL}, ...})"
+      - pattern: "createElement($TAG, {domProps: {innerHTML: $VAL}})"
+
+  # ──────────────────────────────────────────────
+  # 15. svelte-html-xss: Svelte {@html ...} with user input
+  # ──────────────────────────────────────────────
+  - id: svelte-html-xss
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Svelte {@html} tag equivalent detected in compiled component code. The
+      @html tag renders raw HTML without sanitization, creating XSS
+      vulnerabilities when used with user-controlled data. Sanitize HTML
+      content with DOMPurify before rendering, or use text content instead.
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-79: Improper Neutralization of Input During Web Page Generation"
+      confidence: MEDIUM
+    pattern-either:
+      - pattern: |
+          $$invalidate(..., $EL.innerHTML = $VAR, ...)
+
+  # ══════════════════════════════════════════════
+  # RATE LIMITING RULES
+  # ══════════════════════════════════════════════
+
+  # ──────────────────────────────────────────────
+  # 16. auth-endpoint-no-rate-limit: Auth endpoints without rate limiting
+  # ──────────────────────────────────────────────
+  - id: auth-endpoint-no-rate-limit-js
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Authentication endpoint detected without rate limiting middleware.
+      Unprotected login, register, and password reset endpoints are vulnerable
+      to brute force and credential stuffing attacks. Apply rate limiting
+      middleware (e.g., express-rate-limit) to all authentication endpoints
+      to restrict the number of attempts per IP address.
+    metadata:
+      category: security
+      owasp: "A07:2021 - Identification and Authentication Failures"
+      cwe: "CWE-307: Improper Restriction of Excessive Authentication Attempts"
+      confidence: LOW
+    pattern-either:
+      - pattern: $APP.post("=~/.*login.*/", $HANDLER)
+      - pattern: $APP.post("=~/.*signin.*/", $HANDLER)
+      - pattern: $APP.post("=~/.*sign-in.*/", $HANDLER)
+      - pattern: $APP.post("=~/.*register.*/", $HANDLER)
+      - pattern: $APP.post("=~/.*signup.*/", $HANDLER)
+      - pattern: $APP.post("=~/.*sign-up.*/", $HANDLER)
+      - pattern: $APP.post("=~/.*reset-password.*/", $HANDLER)
+      - pattern: $APP.post("=~/.*forgot-password.*/", $HANDLER)
+      - pattern: $APP.post('=~/.*login.*/', $HANDLER)
+      - pattern: $APP.post('=~/.*signin.*/', $HANDLER)
+      - pattern: $APP.post('=~/.*register.*/', $HANDLER)
+      - pattern: $APP.post('=~/.*signup.*/', $HANDLER)
+      - pattern: $APP.post('=~/.*reset-password.*/', $HANDLER)
+      - pattern: $APP.post('=~/.*forgot-password.*/', $HANDLER)
+
+  - id: auth-endpoint-no-rate-limit-python
+    languages: [python]
+    severity: WARNING
+    message: >-
+      Authentication endpoint detected without rate limiting. Unprotected
+      login, register, and password reset endpoints are vulnerable to brute
+      force and credential stuffing attacks. Apply rate limiting using
+      Flask-Limiter, Django Ratelimit, or similar middleware to restrict
+      the number of attempts per IP address.
+    metadata:
+      category: security
+      owasp: "A07:2021 - Identification and Authentication Failures"
+      cwe: "CWE-307: Improper Restriction of Excessive Authentication Attempts"
+      confidence: LOW
+    pattern-either:
+      - pattern: |
+          @$APP.route("=~/.*login.*/", methods=["POST"])
+          def $FUNC(...):
+              ...
+      - pattern: |
+          @$APP.route("=~/.*signin.*/", methods=["POST"])
+          def $FUNC(...):
+              ...
+      - pattern: |
+          @$APP.route("=~/.*register.*/", methods=["POST"])
+          def $FUNC(...):
+              ...
+      - pattern: |
+          @$APP.route("=~/.*signup.*/", methods=["POST"])
+          def $FUNC(...):
+              ...
+      - pattern: |
+          @$APP.route("=~/.*reset-password.*/", methods=["POST"])
+          def $FUNC(...):
+              ...
+      - pattern: |
+          @$APP.route("=~/.*forgot-password.*/", methods=["POST"])
+          def $FUNC(...):
+              ...
+      - pattern: |
+          @$APP.route('=~/.*login.*/', methods=['POST'])
+          def $FUNC(...):
+              ...
+      - pattern: |
+          @$APP.route('=~/.*register.*/', methods=['POST'])
+          def $FUNC(...):
+              ...
+
+  # ══════════════════════════════════════════════
+  # ReDoS RULES
+  # ══════════════════════════════════════════════
+
+  # ──────────────────────────────────────────────
+  # 17. redos-vulnerable-regex: Regex with nested quantifiers (ReDoS risk)
+  # ──────────────────────────────────────────────
+  - id: redos-vulnerable-regex-js
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Regular expression with potential ReDoS (Regular Expression Denial of
+      Service) vulnerability detected. Patterns with nested quantifiers such
+      as (a+)+, (a*)*, or overlapping alternations can cause catastrophic
+      backtracking on crafted input, freezing the application. Simplify the
+      regex pattern, add input length limits, or use a regex engine with
+      backtracking protection (e.g., RE2).
+    metadata:
+      category: security
+      owasp: "A05:2021 - Security Misconfiguration"
+      cwe: "CWE-1333: Inefficient Regular Expression Complexity"
+      confidence: MEDIUM
+    pattern-either:
+      - pattern: new RegExp("=~/.*\\([^)]+[+*]\\)[+*].*/")
+      - pattern: new RegExp('=~/.*\\([^)]+[+*]\\)[+*].*/')
+      - pattern: |
+          /(...+)+/
+      - pattern: |
+          /(...*)+/
+      - pattern: |
+          /(...+)*/
+      - pattern: |
+          /(...*)+$/
+
+  - id: redos-vulnerable-regex-python
+    languages: [python]
+    severity: WARNING
+    message: >-
+      Regular expression with potential ReDoS (Regular Expression Denial of
+      Service) vulnerability detected. Patterns with nested quantifiers can
+      cause catastrophic backtracking on crafted input, freezing the
+      application. Simplify the regex pattern, add input length limits, or
+      use the google-re2 library which provides linear-time matching.
+    metadata:
+      category: security
+      owasp: "A05:2021 - Security Misconfiguration"
+      cwe: "CWE-1333: Inefficient Regular Expression Complexity"
+      confidence: MEDIUM
+    pattern-either:
+      - pattern: re.compile("=~/.*\\(.+[+*]\\)[+*].*/")
+      - pattern: re.match("=~/.*\\(.+[+*]\\)[+*].*/", ...)
+      - pattern: re.search("=~/.*\\(.+[+*]\\)[+*].*/", ...)
+      - pattern: re.compile('=~/.*\\(.+[+*]\\)[+*].*/')
+      - pattern: re.match('=~/.*\\(.+[+*]\\)[+*].*/', ...)
+      - pattern: re.search('=~/.*\\(.+[+*]\\)[+*].*/', ...)
+
+  # ══════════════════════════════════════════════
+  # INPUT VALIDATION HINTS
+  # ══════════════════════════════════════════════
+
+  # ──────────────────────────────────────────────
+  # 18. missing-input-validation: Express routes without schema validation
+  # ──────────────────────────────────────────────
+  - id: missing-input-validation-express
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Express POST/PUT/PATCH route handler accesses request body without
+      apparent input validation schema. Validate all incoming data using a
+      schema validation library (e.g., zod, joi, yup, express-validator) to
+      prevent injection attacks and ensure data integrity. Apply validation
+      middleware before the route handler or validate at the start of the
+      handler.
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-20: Improper Input Validation"
+      confidence: LOW
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $APP.post($PATH, ($REQ, $RES) => {
+                ...
+                $REQ.body
+                ...
+              })
+          - pattern: |
+              $APP.put($PATH, ($REQ, $RES) => {
+                ...
+                $REQ.body
+                ...
+              })
+          - pattern: |
+              $APP.patch($PATH, ($REQ, $RES) => {
+                ...
+                $REQ.body
+                ...
+              })
+      - pattern-not-inside: |
+          ...
+          $SCHEMA.validate(...)
+          ...
+      - pattern-not-inside: |
+          ...
+          $SCHEMA.parse(...)
+          ...
+      - pattern-not-inside: |
+          ...
+          $SCHEMA.safeParse(...)
+          ...
+      - pattern-not-inside: |
+          ...
+          validationResult(...)
+          ...

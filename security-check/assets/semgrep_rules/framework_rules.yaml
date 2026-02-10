@@ -1,0 +1,527 @@
+rules:
+  # ══════════════════════════════════════════════
+  # EXPRESS.JS RULES
+  # ══════════════════════════════════════════════
+
+  # ──────────────────────────────────────────────
+  # 1. express-no-helmet: Missing helmet() security headers middleware
+  # ──────────────────────────────────────────────
+  - id: express-no-helmet
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Express app detected without helmet() middleware. Helmet sets various
+      HTTP security headers (X-Content-Type-Options, Strict-Transport-Security,
+      X-Frame-Options, etc.) that protect against common web vulnerabilities.
+      Install helmet and add app.use(helmet()) before your route definitions.
+    metadata:
+      category: security
+      owasp: "A05:2021 - Security Misconfiguration"
+      cwe: "CWE-693: Protection Mechanism Failure"
+      confidence: MEDIUM
+    patterns:
+      - pattern: |
+          const $APP = express();
+          ...
+      - pattern-not: |
+          const $APP = express();
+          ...
+          $APP.use(helmet());
+          ...
+      - pattern-not: |
+          const $APP = express();
+          ...
+          $APP.use(helmet(...));
+          ...
+
+  # ──────────────────────────────────────────────
+  # 2. express-static-sensitive-dir: express.static() on sensitive directories
+  # ──────────────────────────────────────────────
+  - id: express-static-sensitive-dir
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      express.static() is serving a sensitive directory such as the root
+      filesystem, home directory, or /etc. This exposes configuration files,
+      credentials, and system data to anyone who can reach the server. Only
+      serve explicitly designated public asset directories (e.g., ./public,
+      ./static).
+    metadata:
+      category: security
+      owasp: "A01:2021 - Broken Access Control"
+      cwe: "CWE-552: Files or Directories Accessible to External Parties"
+      confidence: HIGH
+    pattern-either:
+      - pattern: express.static("/")
+      - pattern: express.static("/etc")
+      - pattern: express.static("/root")
+      - pattern: express.static("/home")
+      - pattern: express.static("~")
+      - pattern: express.static(process.env.HOME)
+      - pattern: express.static(".")
+      - pattern: express.static("..")
+      - pattern: express.static(__dirname + "/..")
+      - pattern: express.static(path.join(__dirname, ".."))
+
+  # ──────────────────────────────────────────────
+  # 3. express-body-parser-no-limit: body-parser without size limit (DoS risk)
+  # ──────────────────────────────────────────────
+  - id: express-body-parser-no-limit
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Body parser middleware is used without a size limit. Without a limit,
+      an attacker can send extremely large request bodies (>100MB), causing
+      memory exhaustion and denial of service. Add a limit option, e.g.,
+      express.json({ limit: '1mb' }) or bodyParser.json({ limit: '1mb' }).
+    metadata:
+      category: security
+      owasp: "A05:2021 - Security Misconfiguration"
+      cwe: "CWE-770: Allocation of Resources Without Limits or Throttling"
+      confidence: MEDIUM
+    pattern-either:
+      - pattern: express.json()
+      - pattern: express.urlencoded()
+      - pattern: bodyParser.json()
+      - pattern: bodyParser.urlencoded()
+      - pattern: $APP.use(express.json())
+      - pattern: $APP.use(express.urlencoded())
+      - pattern: $APP.use(bodyParser.json())
+      - pattern: $APP.use(bodyParser.urlencoded())
+
+  # ──────────────────────────────────────────────
+  # 4. express-session-memorystore: Session with default MemoryStore
+  # ──────────────────────────────────────────────
+  - id: express-session-memorystore
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      express-session is used without specifying a session store. The default
+      MemoryStore is not designed for production: it leaks memory under load,
+      does not scale across processes, and loses all sessions on restart. Use
+      a production-ready store such as connect-redis, connect-mongo, or
+      connect-pg-simple.
+    metadata:
+      category: security
+      owasp: "A05:2021 - Security Misconfiguration"
+      cwe: "CWE-770: Allocation of Resources Without Limits or Throttling"
+      confidence: MEDIUM
+    patterns:
+      - pattern: session({...})
+      - pattern-not: "session({..., store: $STORE, ...})"
+
+  # ──────────────────────────────────────────────
+  # 5. express-cors-wildcard: CORS without specific origin configuration
+  # ──────────────────────────────────────────────
+  - id: express-cors-wildcard
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      CORS middleware is used without specifying allowed origins. By default,
+      cors() allows all origins (*), which means any website can make
+      authenticated cross-origin requests to your API if credentials are
+      enabled. Configure specific origins, e.g., cors({ origin:
+      'https://yourdomain.com' }).
+    metadata:
+      category: security
+      owasp: "A05:2021 - Security Misconfiguration"
+      cwe: "CWE-942: Permissive Cross-domain Policy with Untrusted Domains"
+      confidence: MEDIUM
+    pattern-either:
+      - pattern: cors()
+      - pattern: $APP.use(cors())
+
+  # ══════════════════════════════════════════════
+  # DJANGO RULES
+  # ══════════════════════════════════════════════
+
+  # ──────────────────────────────────────────────
+  # 6. django-csrf-exempt: @csrf_exempt disables CSRF protection
+  # ──────────────────────────────────────────────
+  - id: django-csrf-exempt
+    languages: [python]
+    severity: ERROR
+    message: >-
+      @csrf_exempt decorator disables Django's built-in Cross-Site Request
+      Forgery protection for this view. An attacker can trick authenticated
+      users into submitting malicious requests. Remove @csrf_exempt and use
+      Django's CSRF token mechanism, or if the endpoint is an API, use proper
+      token-based authentication instead.
+    metadata:
+      category: security
+      owasp: "A01:2021 - Broken Access Control"
+      cwe: "CWE-352: Cross-Site Request Forgery (CSRF)"
+      confidence: HIGH
+    pattern: |
+      @csrf_exempt
+      def $FUNC(...):
+          ...
+
+  # ──────────────────────────────────────────────
+  # 7. django-allowed-hosts-wildcard: ALLOWED_HOSTS = ['*'] allows all hosts
+  # ──────────────────────────────────────────────
+  - id: django-allowed-hosts-wildcard
+    languages: [python]
+    severity: ERROR
+    message: >-
+      ALLOWED_HOSTS is set to ['*'], which disables Django's host header
+      validation. This allows HTTP Host header attacks including cache
+      poisoning, password reset poisoning, and SSRF. Set ALLOWED_HOSTS to
+      a list of your actual domain names, e.g., ['example.com',
+      'www.example.com'].
+    metadata:
+      category: security
+      owasp: "A05:2021 - Security Misconfiguration"
+      cwe: "CWE-16: Configuration"
+      confidence: HIGH
+    pattern-either:
+      - pattern: ALLOWED_HOSTS = ["*"]
+      - pattern: ALLOWED_HOSTS = ['*']
+      - pattern: ALLOWED_HOSTS = ["*", ...]
+      - pattern: ALLOWED_HOSTS = ['*', ...]
+
+  # ──────────────────────────────────────────────
+  # 8. django-mark-safe-xss: mark_safe() with variable input (XSS)
+  # ──────────────────────────────────────────────
+  - id: django-mark-safe-xss
+    languages: [python]
+    severity: ERROR
+    message: >-
+      mark_safe() is used with a variable or expression, which may contain
+      unsanitized user input. mark_safe() tells Django to skip HTML escaping,
+      allowing raw HTML to be rendered. If the value contains attacker-
+      controlled content, it leads to Cross-Site Scripting (XSS). Use
+      format_html() for safe string interpolation, or sanitize input with
+      bleach before marking it safe.
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-79: Improper Neutralization of Input During Web Page Generation"
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: mark_safe($VAR)
+          - pattern: mark_safe(f"...")
+          - pattern: mark_safe($A + $B)
+          - pattern: mark_safe($A % $B)
+          - pattern: mark_safe($A.format(...))
+      - pattern-not: mark_safe("...")
+
+  # ──────────────────────────────────────────────
+  # 9. django-session-cookie-insecure: SESSION_COOKIE_SECURE = False
+  # ──────────────────────────────────────────────
+  - id: django-session-cookie-insecure
+    languages: [python]
+    severity: WARNING
+    message: >-
+      SESSION_COOKIE_SECURE is set to False. This allows session cookies to
+      be transmitted over unencrypted HTTP connections, making them vulnerable
+      to interception via man-in-the-middle attacks. Set
+      SESSION_COOKIE_SECURE = True in production to ensure session cookies
+      are only sent over HTTPS.
+    metadata:
+      category: security
+      owasp: "A02:2021 - Cryptographic Failures"
+      cwe: "CWE-614: Sensitive Cookie in HTTPS Session Without 'Secure' Attribute"
+      confidence: HIGH
+    pattern: SESSION_COOKIE_SECURE = False
+
+  # ──────────────────────────────────────────────
+  # 10. django-debug-true: DEBUG = True in settings
+  # ──────────────────────────────────────────────
+  - id: django-debug-true
+    languages: [python]
+    severity: ERROR
+    message: >-
+      DEBUG = True detected in Django settings. Debug mode exposes detailed
+      error pages with stack traces, local variables, SQL queries, and
+      environment variables to anyone who triggers an error. This leaks
+      sensitive information about your application internals. Set DEBUG =
+      False in production and use proper logging/error reporting instead.
+    metadata:
+      category: security
+      owasp: "A05:2021 - Security Misconfiguration"
+      cwe: "CWE-215: Insertion of Sensitive Information Into Debugging Code"
+      confidence: HIGH
+    pattern: DEBUG = True
+
+  # ══════════════════════════════════════════════
+  # FLASK RULES
+  # ══════════════════════════════════════════════
+
+  # ──────────────────────────────────────────────
+  # 11. flask-send-file-user-input: send_file() with user-controlled path
+  # ──────────────────────────────────────────────
+  - id: flask-send-file-user-input
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Flask send_file() is called with user-controlled input, which can lead
+      to path traversal attacks. An attacker can use sequences like '../' to
+      read arbitrary files on the server, including /etc/passwd, configuration
+      files, and application secrets. Use send_from_directory() with a fixed
+      base directory and validate the filename, or use
+      werkzeug.utils.secure_filename() to sanitize the input.
+    metadata:
+      category: security
+      owasp: "A01:2021 - Broken Access Control"
+      cwe: "CWE-22: Improper Limitation of a Pathname to a Restricted Directory"
+      confidence: HIGH
+    pattern-either:
+      - pattern: send_file(request.args.get(...))
+      - pattern: send_file(request.args[...])
+      - pattern: send_file(request.form.get(...))
+      - pattern: send_file(request.form[...])
+      - pattern: send_file(request.values.get(...))
+      - pattern: send_file(request.values[...])
+      - patterns:
+          - pattern: send_file($PATH)
+          - pattern-inside: |
+              $PATH = request.args.get(...)
+              ...
+      - patterns:
+          - pattern: send_file($PATH)
+          - pattern-inside: |
+              $PATH = request.form.get(...)
+              ...
+
+  # ──────────────────────────────────────────────
+  # 12. flask-ssti: render_template_string() with user input (SSTI)
+  # ──────────────────────────────────────────────
+  - id: flask-ssti
+    languages: [python]
+    severity: ERROR
+    message: >-
+      render_template_string() is called with user-controlled input. This
+      leads to Server-Side Template Injection (SSTI), allowing an attacker
+      to execute arbitrary Python code on the server by injecting Jinja2
+      template syntax (e.g., {{ config }}). Use render_template() with a
+      fixed template file and pass user data as template variables instead.
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-1336: Improper Neutralization of Special Elements Used in a Template Engine"
+      confidence: HIGH
+    pattern-either:
+      - pattern: render_template_string(request.args.get(...))
+      - pattern: render_template_string(request.args[...])
+      - pattern: render_template_string(request.form.get(...))
+      - pattern: render_template_string(request.form[...])
+      - pattern: render_template_string(request.values.get(...))
+      - pattern: render_template_string(request.data)
+      - pattern: render_template_string(f"...{...}...")
+      - pattern: render_template_string($A + $B)
+      - pattern: render_template_string($A % $B)
+      - pattern: render_template_string($A.format(...))
+      - patterns:
+          - pattern: render_template_string($TPL)
+          - pattern-inside: |
+              $TPL = request.args.get(...)
+              ...
+      - patterns:
+          - pattern: render_template_string($TPL)
+          - pattern-inside: |
+              $TPL = request.form.get(...)
+              ...
+
+  # ──────────────────────────────────────────────
+  # 13. flask-debug-mode: app.run(debug=True) in production
+  # ──────────────────────────────────────────────
+  - id: flask-debug-mode
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Flask app.run() is called with debug=True. Debug mode enables the
+      interactive Werkzeug debugger, which allows arbitrary code execution
+      from the browser, and enables the reloader, which can cause unexpected
+      behavior. Never use debug=True in production. Use environment variables
+      or a WSGI server (Gunicorn, uWSGI) for production deployments.
+    metadata:
+      category: security
+      owasp: "A05:2021 - Security Misconfiguration"
+      cwe: "CWE-215: Insertion of Sensitive Information Into Debugging Code"
+      confidence: HIGH
+    pattern-either:
+      - pattern: app.run(debug=True)
+      - pattern: app.run(..., debug=True, ...)
+      - pattern: $APP.run(debug=True)
+      - pattern: $APP.run(..., debug=True, ...)
+
+  # ══════════════════════════════════════════════
+  # DOCKERFILE RULES
+  # ══════════════════════════════════════════════
+
+  # ──────────────────────────────────────────────
+  # 14. dockerfile-run-as-root: Running container as root user
+  # ──────────────────────────────────────────────
+  - id: dockerfile-run-as-root
+    languages: [dockerfile]
+    severity: WARNING
+    message: >-
+      Dockerfile explicitly sets USER root, or contains no USER instruction
+      at all. Containers running as root give an attacker full control over
+      the container filesystem and increase the blast radius of container
+      escapes. Add a USER instruction to run the application as a non-root
+      user, e.g., RUN adduser --disabled-password appuser && USER appuser.
+    metadata:
+      category: security
+      owasp: "A05:2021 - Security Misconfiguration"
+      cwe: "CWE-250: Execution with Unnecessary Privileges"
+      confidence: MEDIUM
+    pattern: USER root
+
+  # ──────────────────────────────────────────────
+  # 15. dockerfile-curl-pipe-bash: Piping curl/wget output to shell
+  # ──────────────────────────────────────────────
+  - id: dockerfile-curl-pipe-bash
+    languages: [dockerfile]
+    severity: ERROR
+    message: >-
+      RUN instruction pipes curl or wget output directly to a shell (bash,
+      sh). This pattern downloads and executes remote code without any
+      integrity verification, enabling supply chain attacks if the server is
+      compromised or DNS is hijacked. Download the script first, verify its
+      checksum, then execute it as a separate step.
+    metadata:
+      category: security
+      owasp: "A08:2021 - Software and Data Integrity Failures"
+      cwe: "CWE-829: Inclusion of Functionality from Untrusted Control Sphere"
+      confidence: HIGH
+    pattern-either:
+      - pattern: RUN ... curl ... | bash ...
+      - pattern: RUN ... curl ... | sh ...
+      - pattern: RUN ... wget ... | bash ...
+      - pattern: RUN ... wget ... | sh ...
+      - pattern: RUN ... curl ... | /bin/bash ...
+      - pattern: RUN ... curl ... | /bin/sh ...
+      - pattern: RUN ... wget ... | /bin/bash ...
+      - pattern: RUN ... wget ... | /bin/sh ...
+
+  # ──────────────────────────────────────────────
+  # 16. dockerfile-copy-secrets: COPY sensitive files into image
+  # ──────────────────────────────────────────────
+  - id: dockerfile-copy-secrets
+    languages: [dockerfile]
+    severity: ERROR
+    message: >-
+      COPY or ADD instruction includes sensitive files such as .env,
+      credentials, private keys, or secrets. These files are baked into the
+      Docker image layer and remain accessible even if deleted in a later
+      layer. Use Docker secrets, environment variables at runtime, or
+      multi-stage builds to handle sensitive data without embedding it in
+      the image.
+    metadata:
+      category: security
+      owasp: "A02:2021 - Cryptographic Failures"
+      cwe: "CWE-200: Exposure of Sensitive Information to an Unauthorized Actor"
+      confidence: HIGH
+    pattern-either:
+      - pattern: COPY ... .env ...
+      - pattern: ADD ... .env ...
+      - pattern: COPY ... .env.local ...
+      - pattern: ADD ... .env.local ...
+      - pattern: COPY ... .env.production ...
+      - pattern: ADD ... .env.production ...
+      - pattern: COPY ... credentials.json ...
+      - pattern: ADD ... credentials.json ...
+      - pattern: COPY ... id_rsa ...
+      - pattern: ADD ... id_rsa ...
+      - pattern: COPY ... .aws/credentials ...
+      - pattern: ADD ... .aws/credentials ...
+      - pattern: COPY ... secrets.yaml ...
+      - pattern: ADD ... secrets.yaml ...
+      - pattern: COPY ... secrets.yml ...
+      - pattern: ADD ... secrets.yml ...
+
+  # ──────────────────────────────────────────────
+  # 17. dockerfile-unpinned-base-image: FROM with :latest or no tag
+  # ──────────────────────────────────────────────
+  - id: dockerfile-unpinned-base-image
+    languages: [dockerfile]
+    severity: WARNING
+    message: >-
+      Base image uses the :latest tag or no tag at all. This means builds
+      are not reproducible and a compromised or broken upstream image update
+      will silently affect your builds. Pin the base image to a specific
+      version or SHA256 digest, e.g., FROM node:20.11-alpine or FROM
+      node@sha256:abc123...
+    metadata:
+      category: security
+      owasp: "A08:2021 - Software and Data Integrity Failures"
+      cwe: "CWE-829: Inclusion of Functionality from Untrusted Control Sphere"
+      confidence: MEDIUM
+    pattern-either:
+      - pattern: FROM $IMAGE:latest
+      - pattern: FROM $IMAGE:latest AS $STAGE
+
+  # ══════════════════════════════════════════════
+  # GITHUB ACTIONS RULES
+  # ══════════════════════════════════════════════
+
+  # ──────────────────────────────────────────────
+  # 18. gha-expression-injection: Untrusted input in run: steps
+  # ──────────────────────────────────────────────
+  - id: gha-expression-injection
+    languages: [generic]
+    severity: ERROR
+    message: >-
+      GitHub Actions expression interpolation (${{ github.event.* }}) is used
+      directly in a run: step. Attacker-controlled values such as PR titles,
+      branch names, issue bodies, and commit messages are injected verbatim
+      into the shell script, enabling arbitrary command execution. Use an
+      intermediate environment variable instead: env: TITLE: ${{
+      github.event.pull_request.title }} and reference it as $TITLE in the
+      run script.
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-78: Improper Neutralization of Special Elements used in an OS Command"
+      confidence: HIGH
+    paths:
+      include:
+        - ".github/workflows/"
+    pattern-either:
+      - pattern: |
+          ${{ github.event.pull_request.title }}
+      - pattern: |
+          ${{ github.event.pull_request.body }}
+      - pattern: |
+          ${{ github.event.issue.title }}
+      - pattern: |
+          ${{ github.event.issue.body }}
+      - pattern: |
+          ${{ github.event.comment.body }}
+      - pattern: |
+          ${{ github.event.review.body }}
+      - pattern: |
+          ${{ github.event.head_commit.message }}
+      - pattern: |
+          ${{ github.head_ref }}
+
+  # ──────────────────────────────────────────────
+  # 19. gha-pull-request-target-checkout: pull_request_target with PR code checkout
+  # ──────────────────────────────────────────────
+  - id: gha-pull-request-target-checkout
+    languages: [generic]
+    severity: ERROR
+    message: >-
+      Workflow uses pull_request_target trigger and checks out the PR head
+      code (ref: github.event.pull_request.head.sha or the PR branch). This
+      is dangerous because pull_request_target runs with write permissions
+      and access to secrets, but the checked-out code is attacker-controlled.
+      An attacker can submit a PR that modifies workflow scripts to exfiltrate
+      secrets. Use pull_request trigger instead, or avoid checking out PR
+      code in pull_request_target workflows.
+    metadata:
+      category: security
+      owasp: "A08:2021 - Software and Data Integrity Failures"
+      cwe: "CWE-829: Inclusion of Functionality from Untrusted Control Sphere"
+      confidence: HIGH
+    paths:
+      include:
+        - ".github/workflows/"
+    pattern-either:
+      - pattern: |
+          ${{ github.event.pull_request.head.sha }}
+      - pattern: |
+          ${{ github.event.pull_request.head.ref }}

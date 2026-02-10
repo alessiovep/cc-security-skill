@@ -177,17 +177,26 @@ class SecurityAuditor:
             (["sql-inject", "sql_inject", "sqli", "parameterized"], "A03:2021 - Injection"),
             (["xss", "cross-site scripting", "innerhtml"], "A03:2021 - Injection"),
             (["command-inject", "cmd-inject", "shell-inject"], "A03:2021 - Injection"),
-            (["inject", "ldap", "xpath", "template-inject"], "A03:2021 - Injection"),
+            (["ssti", "template-inject", "server-side-template"], "A03:2021 - Injection"),
+            (["redos", "regex-dos"], "A03:2021 - Injection"),
+            (["inject", "ldap", "xpath"], "A03:2021 - Injection"),
             (["deseriali", "unsafe-load", "integrity"], "A08:2021 - Software and Data Integrity Failures"),
+            (["jwt", "token", "bearer", "rate-limit", "brute-force", "throttle"], "A07:2021 - Identification and Authentication Failures"),
             (["authenticat", "password", "credential", "login", "session-fixat"], "A07:2021 - Identification and Authentication Failures"),
+            (["mass-assign", "over-posting"], "A01:2021 - Broken Access Control"),
+            (["postmessage", "websocket"], "A01:2021 - Broken Access Control"),
             (["authoriz", "access-control", "privilege", "idor", "broken-access"], "A01:2021 - Broken Access Control"),
             (["open-redirect", "redirect"], "A01:2021 - Broken Access Control"),
+            (["path-traversal", "directory-traversal", "lfi"], "A01:2021 - Broken Access Control"),
+            (["password-hash", "weak-hash", "bcrypt", "argon"], "A02:2021 - Cryptographic Failures"),
             (["crypto", "cipher", "weak-random", "md5", "sha1", "des", "secret", "api-key", "hardcoded"], "A02:2021 - Cryptographic Failures"),
             (["tls", "ssl", "certificate", "https"], "A02:2021 - Cryptographic Failures"),
+            (["upload", "file-upload", "multipart", "race-condition", "toctou"], "A04:2021 - Insecure Design"),
+            (["graphql", "introspection", "query-depth"], "A05:2021 - Security Misconfiguration"),
+            (["security-header", "csp", "hsts", "x-frame"], "A05:2021 - Security Misconfiguration"),
             (["misconfig", "debug", "default", "cors", "header", "cookie", "csrf"], "A05:2021 - Security Misconfiguration"),
             (["dependency", "component", "outdated", "cve-"], "A06:2021 - Vulnerable and Outdated Components"),
             (["log", "monitor", "audit-trail"], "A09:2021 - Security Logging and Monitoring Failures"),
-            (["path-traversal", "directory-traversal", "lfi"], "A01:2021 - Broken Access Control"),
         ]
 
         for keywords, category in patterns:
@@ -202,7 +211,11 @@ class SecurityAuditor:
         if tool == "Trivy":
             return "dependency"
         check_id = vulnerability.get("type", "").lower()
-        auto_patterns = ["misconfig", "cookie", "header", "debug", "csrf", "cors", "tls-verify"]
+        auto_patterns = [
+            "misconfig", "cookie", "header", "debug", "csrf", "cors", "tls-verify",
+            "security-header", "jwt", "password-hash", "target-blank", "yaml-load",
+            "insecure-random", "weak-crypto", "insecure-cookie", "tls",
+        ]
         if any(p in check_id for p in auto_patterns):
             return "auto"
         return "manual"
@@ -215,6 +228,10 @@ class SecurityAuditor:
         if "results" in semgrep_results:
             for finding in semgrep_results["results"]:
                 raw_severity = finding.get("extra", {}).get("severity", "MEDIUM")
+                metadata = finding.get("extra", {}).get("metadata", {})
+                cwe_data = metadata.get("cwe", [])
+                if isinstance(cwe_data, str):
+                    cwe_data = [cwe_data]
                 vuln = {
                     "id": self._next_finding_id(),
                     "tool": "Semgrep",
@@ -223,6 +240,7 @@ class SecurityAuditor:
                     "file": finding.get("path", "unknown"),
                     "line": finding.get("start", {}).get("line", 0),
                     "message": finding.get("extra", {}).get("message", ""),
+                    "cwe": cwe_data,
                     "owasp_category": self.categorize_by_owasp({
                         **finding,
                         "tool": "Semgrep",

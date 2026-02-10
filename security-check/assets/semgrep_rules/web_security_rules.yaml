@@ -1,0 +1,685 @@
+rules:
+  # ──────────────────────────────────────────────
+  # 1. Security Headers - Missing CSP, HSTS, X-Frame-Options, X-Content-Type-Options
+  # ──────────────────────────────────────────────
+
+  # Express.js without helmet
+  - id: web-security-express-no-helmet
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Express application without helmet middleware detected. The helmet
+      package sets important security headers including Content-Security-Policy,
+      Strict-Transport-Security, X-Frame-Options, and X-Content-Type-Options.
+      Install helmet and add app.use(helmet()) to your Express app to enable
+      security headers automatically.
+    metadata:
+      category: security
+      owasp: "A05:2021 - Security Misconfiguration"
+      cwe: "CWE-693: Protection Mechanism Failure"
+      confidence: MEDIUM
+    patterns:
+      - pattern: |
+          const $APP = express();
+          ...
+      - pattern-not-inside: |
+          const $APP = express();
+          ...
+          $APP.use(helmet());
+          ...
+      - pattern-not-inside: |
+          const $APP = express();
+          ...
+          $APP.use(helmet(...));
+          ...
+
+  # Express.js manual response without security headers
+  - id: web-security-express-missing-security-headers
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Express response sent without security headers. Consider using the
+      helmet middleware or manually setting Content-Security-Policy,
+      X-Content-Type-Options, X-Frame-Options, and Strict-Transport-Security
+      headers on all responses. Use app.use(helmet()) for automatic protection.
+    metadata:
+      category: security
+      owasp: "A05:2021 - Security Misconfiguration"
+      cwe: "CWE-693: Protection Mechanism Failure"
+      confidence: LOW
+    patterns:
+      - pattern-either:
+          - pattern: res.send(...)
+          - pattern: res.json(...)
+      - pattern-not-inside: |
+          res.setHeader("Content-Security-Policy", ...);
+          ...
+      - pattern-not-inside: |
+          res.set("Content-Security-Policy", ...);
+          ...
+
+  # Flask missing security headers
+  - id: web-security-flask-missing-headers
+    languages: [python]
+    severity: WARNING
+    message: >-
+      Flask response created without security headers. Add security headers
+      such as Content-Security-Policy, X-Content-Type-Options, X-Frame-Options,
+      and Strict-Transport-Security using Flask-Talisman or by setting headers
+      in an after_request handler. Install flask-talisman and add
+      Talisman(app) for automatic protection.
+    metadata:
+      category: security
+      owasp: "A05:2021 - Security Misconfiguration"
+      cwe: "CWE-693: Protection Mechanism Failure"
+      confidence: MEDIUM
+    patterns:
+      - pattern: |
+          $APP = Flask(...)
+          ...
+      - pattern-not-inside: |
+          $APP = Flask(...)
+          ...
+          Talisman($APP, ...)
+          ...
+      - pattern-not-inside: |
+          $APP = Flask(...)
+          ...
+          Talisman($APP)
+          ...
+
+  # Django SECURE_HSTS_SECONDS not set
+  - id: web-security-django-no-hsts
+    languages: [python]
+    severity: WARNING
+    message: >-
+      Django settings with SECURE_HSTS_SECONDS set to 0 or not enabled.
+      Set SECURE_HSTS_SECONDS to at least 31536000 (one year) to enable
+      HTTP Strict Transport Security and protect against protocol downgrade
+      attacks and cookie hijacking.
+    metadata:
+      category: security
+      owasp: "A05:2021 - Security Misconfiguration"
+      cwe: "CWE-319: Cleartext Transmission of Sensitive Information"
+      confidence: HIGH
+    pattern: |
+      SECURE_HSTS_SECONDS = 0
+
+  # Go net/http response without security headers
+  - id: web-security-go-missing-headers
+    languages: [go]
+    severity: WARNING
+    message: >-
+      HTTP response written without security headers. Set Content-Security-Policy,
+      X-Content-Type-Options, X-Frame-Options, and Strict-Transport-Security
+      headers using w.Header().Set() before writing the response. Consider
+      creating a middleware that adds these headers to all responses.
+    metadata:
+      category: security
+      owasp: "A05:2021 - Security Misconfiguration"
+      cwe: "CWE-693: Protection Mechanism Failure"
+      confidence: LOW
+    patterns:
+      - pattern-either:
+          - pattern: $W.Write(...)
+          - pattern: $W.WriteHeader(...)
+      - pattern-not-inside: |
+          $W.Header().Set("Content-Security-Policy", ...)
+          ...
+      - pattern-not-inside: |
+          $W.Header().Set("X-Content-Type-Options", ...)
+          ...
+
+  # ──────────────────────────────────────────────
+  # 2. JWT Security - Algorithm confusion, missing expiry, weak secrets
+  # ──────────────────────────────────────────────
+
+  # JWT algorithm none
+  - id: web-security-jwt-alg-none
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      JWT signed or verified with algorithm set to 'none'. This effectively
+      disables signature verification, allowing attackers to forge arbitrary
+      tokens. Always specify a strong algorithm such as RS256 or HS256 with
+      a secure key, and set algorithms in the verify options to prevent
+      algorithm switching attacks.
+    metadata:
+      category: security
+      owasp: "A02:2021 - Cryptographic Failures"
+      cwe: "CWE-327: Use of a Broken or Risky Cryptographic Algorithm"
+      confidence: HIGH
+    pattern-either:
+      - pattern: |
+          jwt.sign($PAYLOAD, $SECRET, {algorithm: "none", ...})
+      - pattern: |
+          jwt.sign($PAYLOAD, $SECRET, {..., algorithm: "none"})
+      - pattern: |
+          jwt.verify($TOKEN, $SECRET, {algorithms: ["none"], ...})
+      - pattern: |
+          jwt.verify($TOKEN, $SECRET, {..., algorithms: ["none"]})
+      - pattern: |
+          jwt.sign($PAYLOAD, $SECRET, {algorithm: 'none', ...})
+      - pattern: |
+          jwt.verify($TOKEN, $SECRET, {algorithms: ['none'], ...})
+
+  # JWT algorithm none - Python
+  - id: web-security-jwt-alg-none-python
+    languages: [python]
+    severity: ERROR
+    message: >-
+      JWT encoded or decoded with algorithm set to 'none'. This disables
+      signature verification, allowing token forgery. Always use a strong
+      algorithm like RS256 or HS256 and explicitly specify allowed algorithms
+      in jwt.decode() to prevent algorithm confusion attacks.
+    metadata:
+      category: security
+      owasp: "A02:2021 - Cryptographic Failures"
+      cwe: "CWE-327: Use of a Broken or Risky Cryptographic Algorithm"
+      confidence: HIGH
+    pattern-either:
+      - pattern: jwt.encode($PAYLOAD, $SECRET, algorithm="none")
+      - pattern: jwt.decode($TOKEN, $SECRET, algorithms=["none"])
+      - pattern: jwt.decode($TOKEN, $SECRET, algorithms=["none"], ...)
+
+  # JWT without expiry
+  - id: web-security-jwt-no-expiry
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      JWT token signed without an expiration claim (exp). Tokens without
+      expiration remain valid indefinitely and cannot be effectively revoked.
+      Always include an exp claim in the payload or use the expiresIn option,
+      e.g. jwt.sign(payload, secret, {expiresIn: '1h'}).
+    metadata:
+      category: security
+      owasp: "A07:2021 - Identification and Authentication Failures"
+      cwe: "CWE-613: Insufficient Session Expiration"
+      confidence: MEDIUM
+    patterns:
+      - pattern: jwt.sign($PAYLOAD, $SECRET)
+      - pattern-not: jwt.sign($PAYLOAD, $SECRET, ...)
+
+  # JWT weak secret
+  - id: web-security-jwt-weak-secret
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      JWT signed with a hardcoded or weak secret string. Short or predictable
+      secrets can be brute-forced, allowing attackers to forge valid tokens.
+      Use a strong, randomly generated secret of at least 256 bits, and store
+      it in an environment variable instead of hardcoding it. Consider using
+      asymmetric algorithms (RS256) for better security.
+    metadata:
+      category: security
+      owasp: "A02:2021 - Cryptographic Failures"
+      cwe: "CWE-321: Use of Hard-coded Cryptographic Key"
+      confidence: HIGH
+    pattern-either:
+      - pattern: jwt.sign($PAYLOAD, "secret", ...)
+      - pattern: jwt.sign($PAYLOAD, "password", ...)
+      - pattern: jwt.sign($PAYLOAD, "key", ...)
+      - pattern: jwt.sign($PAYLOAD, "jwt_secret", ...)
+      - pattern: jwt.sign($PAYLOAD, "changeme", ...)
+      - pattern: jwt.sign($PAYLOAD, 'secret', ...)
+      - pattern: jwt.sign($PAYLOAD, 'password', ...)
+      - pattern: jwt.sign($PAYLOAD, 'key', ...)
+      - pattern: jwt.sign($PAYLOAD, 'changeme', ...)
+
+  # JWT verify without algorithm restriction
+  - id: web-security-jwt-no-algorithm-check
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      JWT verification without explicitly specifying allowed algorithms.
+      Without the algorithms option, an attacker can exploit algorithm
+      confusion by switching from RS256 to HS256 and signing with the public
+      key. Always specify algorithms in jwt.verify(), e.g.
+      jwt.verify(token, key, {algorithms: ['RS256']}).
+    metadata:
+      category: security
+      owasp: "A02:2021 - Cryptographic Failures"
+      cwe: "CWE-327: Use of a Broken or Risky Cryptographic Algorithm"
+      confidence: HIGH
+    patterns:
+      - pattern: jwt.verify($TOKEN, $KEY)
+      - pattern-not: jwt.verify($TOKEN, $KEY, ...)
+
+  # ──────────────────────────────────────────────
+  # 3. File Upload - Missing type/size validation
+  # ──────────────────────────────────────────────
+
+  # Multer without file filter or limits
+  - id: web-security-multer-no-validation
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Multer file upload configured without fileFilter or limits. Without
+      file type validation and size limits, attackers can upload malicious
+      files (e.g. web shells, executables) or cause denial of service with
+      oversized uploads. Configure multer with fileFilter to validate MIME
+      types and limits to restrict file size, e.g.
+      multer({limits: {fileSize: 5*1024*1024}, fileFilter: myFilter}).
+    metadata:
+      category: security
+      owasp: "A04:2021 - Insecure Design"
+      cwe: "CWE-434: Unrestricted Upload of File with Dangerous Type"
+      confidence: HIGH
+    patterns:
+      - pattern: |
+          multer({dest: $DEST})
+      - pattern-not: |
+          multer({..., fileFilter: $FILTER, ...})
+      - pattern-not: |
+          multer({..., limits: $LIMITS, ...})
+
+  - id: web-security-multer-no-limits
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Multer file upload configured without size limits. Without limits,
+      attackers can upload very large files causing disk exhaustion or denial
+      of service. Add limits to your multer configuration, e.g.
+      multer({limits: {fileSize: 5*1024*1024}}).
+    metadata:
+      category: security
+      owasp: "A04:2021 - Insecure Design"
+      cwe: "CWE-770: Allocation of Resources Without Limits or Throttling"
+      confidence: MEDIUM
+    patterns:
+      - pattern: |
+          multer({...})
+      - pattern-not: |
+          multer({..., limits: $LIMITS, ...})
+
+  # Formidable without maxFileSize
+  - id: web-security-formidable-no-limits
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Formidable file upload configured without maxFileSize or file type
+      filtering. Set maxFileSize and filter to restrict upload types and
+      sizes, e.g. formidable({maxFileSize: 5*1024*1024, filter: myFilter}).
+    metadata:
+      category: security
+      owasp: "A04:2021 - Insecure Design"
+      cwe: "CWE-434: Unrestricted Upload of File with Dangerous Type"
+      confidence: MEDIUM
+    patterns:
+      - pattern-either:
+          - pattern: |
+              formidable({...})
+          - pattern: new formidable.IncomingForm()
+      - pattern-not: |
+          formidable({..., maxFileSize: $SIZE, ...})
+
+  # Python werkzeug save without secure_filename
+  - id: web-security-werkzeug-no-secure-filename
+    languages: [python]
+    severity: ERROR
+    message: >-
+      File upload saved without using secure_filename() from werkzeug.utils.
+      User-provided filenames can contain path traversal sequences like
+      '../' that allow overwriting arbitrary files. Always use
+      secure_filename(file.filename) before saving, e.g.
+      file.save(os.path.join(upload_dir, secure_filename(file.filename))).
+    metadata:
+      category: security
+      owasp: "A01:2021 - Broken Access Control"
+      cwe: "CWE-22: Improper Limitation of a Pathname to a Restricted Directory"
+      confidence: HIGH
+    patterns:
+      - pattern: $FILE.save(os.path.join($DIR, $FILE.filename))
+      - pattern-not: $FILE.save(os.path.join($DIR, secure_filename($FILE.filename)))
+
+  # Flask file upload without type check
+  - id: web-security-flask-upload-no-type-check
+    languages: [python]
+    severity: WARNING
+    message: >-
+      Flask file upload without file extension or MIME type validation.
+      Without validation, attackers can upload executable files or web shells.
+      Validate file extensions against an allowlist using
+      allowed_file(filename) before saving, and configure
+      ALLOWED_EXTENSIONS in your Flask app.
+    metadata:
+      category: security
+      owasp: "A04:2021 - Insecure Design"
+      cwe: "CWE-434: Unrestricted Upload of File with Dangerous Type"
+      confidence: MEDIUM
+    patterns:
+      - pattern: |
+          $FILE = request.files[$NAME]
+          ...
+          $FILE.save(...)
+      - pattern-not-inside: |
+          $FILE = request.files[$NAME]
+          ...
+          if ... $FILE.filename ...:
+              ...
+
+  # Java Spring MultipartFile without validation
+  - id: web-security-spring-upload-no-validation
+    languages: [java]
+    severity: ERROR
+    message: >-
+      Spring MultipartFile saved without content type or size validation.
+      Validate the file's content type against an allowlist and check file
+      size before processing. Use getContentType() and getSize() methods
+      for validation, and never trust the original filename without
+      sanitization.
+    metadata:
+      category: security
+      owasp: "A04:2021 - Insecure Design"
+      cwe: "CWE-434: Unrestricted Upload of File with Dangerous Type"
+      confidence: MEDIUM
+    patterns:
+      - pattern: $FILE.transferTo(...)
+      - pattern-not-inside: |
+          if (...$FILE.getContentType()...) {
+              ...
+          }
+      - pattern-not-inside: |
+          if (...$FILE.getSize()...) {
+              ...
+          }
+
+  # ──────────────────────────────────────────────
+  # 4. Mass Assignment - ORM mass-update with user input
+  # ──────────────────────────────────────────────
+
+  # Sequelize create with req.body
+  - id: web-security-sequelize-mass-assignment
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Sequelize model create/update with unsanitized req.body allows mass
+      assignment. An attacker can add unexpected fields (like isAdmin or role)
+      to the request body, modifying protected database columns. Explicitly
+      pick allowed fields from req.body, or use the fields option to whitelist
+      columns, e.g. Model.create(req.body, {fields: ['name', 'email']}).
+    metadata:
+      category: security
+      owasp: "A08:2021 - Software and Data Integrity Failures"
+      cwe: "CWE-915: Improperly Controlled Modification of Dynamically-Determined Object Attributes"
+      confidence: HIGH
+    pattern-either:
+      - pattern: $MODEL.create(req.body)
+      - pattern: $MODEL.create(req.body, ...)
+      - pattern: $MODEL.update(req.body, ...)
+      - pattern: $MODEL.bulkCreate(req.body)
+      - pattern: $MODEL.bulkCreate(req.body, ...)
+      - pattern: |
+          $MODEL.findOrCreate({..., defaults: req.body, ...})
+      - pattern: $MODEL.upsert(req.body)
+      - pattern: $MODEL.upsert(req.body, ...)
+
+  # Sequelize mass assignment via spread
+  - id: web-security-sequelize-spread-mass-assignment
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Sequelize model operation with spread of req.body allows mass
+      assignment. Spreading user input into model operations lets attackers
+      inject additional fields. Destructure only the expected fields from
+      req.body explicitly, e.g. const {name, email} = req.body.
+    metadata:
+      category: security
+      owasp: "A08:2021 - Software and Data Integrity Failures"
+      cwe: "CWE-915: Improperly Controlled Modification of Dynamically-Determined Object Attributes"
+      confidence: HIGH
+    pattern-either:
+      - pattern: |
+          $MODEL.create({...req.body})
+      - pattern: |
+          $MODEL.create({...req.body, ...})
+      - pattern: |
+          $MODEL.update({...req.body}, ...)
+      - pattern: |
+          $MODEL.update({...req.body, ...}, ...)
+
+  # Django mass assignment
+  - id: web-security-django-mass-assignment
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Django model created or updated with unpacked user input (request.data
+      or request.POST). This allows mass assignment where attackers can set
+      protected fields like is_staff or is_superuser. Use Django Forms or
+      Serializers to validate and whitelist allowed fields, or explicitly
+      set each field individually.
+    metadata:
+      category: security
+      owasp: "A08:2021 - Software and Data Integrity Failures"
+      cwe: "CWE-915: Improperly Controlled Modification of Dynamically-Determined Object Attributes"
+      confidence: HIGH
+    pattern-either:
+      - pattern: $MODEL.objects.create(**request.data)
+      - pattern: $MODEL.objects.create(**request.POST)
+      - pattern: $MODEL.objects.create(**request.POST.dict())
+      - pattern: $MODEL.objects.create(**request.data.dict())
+      - pattern: $MODEL(**request.data)
+      - pattern: $MODEL(**request.POST)
+      - pattern: $MODEL.objects.filter(...).update(**request.data)
+      - pattern: $MODEL.objects.filter(...).update(**request.POST)
+
+  # Mongoose mass assignment
+  - id: web-security-mongoose-mass-assignment
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Mongoose model created or updated with raw req.body. This allows mass
+      assignment where attackers can modify protected fields. Use Mongoose
+      schema-level protection with select: false for sensitive fields, or
+      explicitly pick allowed fields from req.body before passing to the
+      model operation.
+    metadata:
+      category: security
+      owasp: "A08:2021 - Software and Data Integrity Failures"
+      cwe: "CWE-915: Improperly Controlled Modification of Dynamically-Determined Object Attributes"
+      confidence: HIGH
+    pattern-either:
+      - pattern: new $MODEL(req.body)
+      - pattern: $MODEL.create(req.body)
+      - pattern: $MODEL.findByIdAndUpdate($ID, req.body, ...)
+      - pattern: $MODEL.findOneAndUpdate($QUERY, req.body, ...)
+      - pattern: $MODEL.updateOne($QUERY, req.body, ...)
+      - pattern: $MODEL.updateMany($QUERY, req.body, ...)
+
+  # ──────────────────────────────────────────────
+  # 5. SSTI - Server-Side Template Injection
+  # ──────────────────────────────────────────────
+
+  # Flask render_template_string with user input
+  - id: web-security-flask-ssti
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Flask render_template_string() called with user-controlled input.
+      This allows Server-Side Template Injection (SSTI) where attackers can
+      execute arbitrary Python code through Jinja2 template expressions like
+      {{config}} or {{''.__class__.__mro__}}. Use render_template() with
+      a file-based template and pass user input as template variables instead.
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-1336: Improper Neutralization of Special Elements Used in a Template Engine"
+      confidence: HIGH
+    pattern-either:
+      - pattern: render_template_string(request.args.get(...))
+      - pattern: render_template_string(request.form.get(...))
+      - pattern: render_template_string(request.args[...])
+      - pattern: render_template_string(request.form[...])
+      - pattern: render_template_string(request.data)
+      - pattern: render_template_string(request.values[...])
+      - pattern: render_template_string(request.values.get(...))
+
+  # Flask SSTI via string formatting
+  - id: web-security-flask-ssti-format
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Template string constructed with user input and passed to
+      render_template_string(). This is a Server-Side Template Injection
+      vulnerability. User input embedded in Jinja2 template strings can
+      execute arbitrary code. Use render_template() with a separate template
+      file and pass data as context variables.
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-1336: Improper Neutralization of Special Elements Used in a Template Engine"
+      confidence: HIGH
+    pattern-either:
+      - pattern: render_template_string(f"...{$INPUT}...")
+      - pattern: render_template_string("..." % $INPUT)
+      - pattern: render_template_string("...".format($INPUT))
+      - pattern: render_template_string("..." + $INPUT)
+      - pattern: render_template_string("..." + $INPUT + "...")
+
+  # Jinja2 Environment with user strings
+  - id: web-security-jinja2-ssti
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Jinja2 template compiled from a user-controlled string. Using
+      Environment.from_string() or Template() with user input enables
+      Server-Side Template Injection. Use Environment.get_template() to
+      load templates from the filesystem and pass user data as template
+      context variables.
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-1336: Improper Neutralization of Special Elements Used in a Template Engine"
+      confidence: HIGH
+    pattern-either:
+      - pattern: Template($USER_INPUT)
+      - pattern: $ENV.from_string($USER_INPUT)
+
+  # Pug/EJS compile with user input (Node.js)
+  - id: web-security-node-ssti
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Template engine compile/render function called with user-controlled
+      input. This allows Server-Side Template Injection where attackers can
+      execute arbitrary code on the server. Never pass user input as the
+      template source. Use pre-compiled template files and pass user data
+      as template variables instead.
+    metadata:
+      category: security
+      owasp: "A03:2021 - Injection"
+      cwe: "CWE-1336: Improper Neutralization of Special Elements Used in a Template Engine"
+      confidence: HIGH
+    pattern-either:
+      - pattern: pug.compile(req.body.$PARAM)
+      - pattern: pug.compile(req.query.$PARAM)
+      - pattern: pug.render(req.body.$PARAM, ...)
+      - pattern: pug.render(req.query.$PARAM, ...)
+      - pattern: ejs.compile(req.body.$PARAM)
+      - pattern: ejs.compile(req.query.$PARAM)
+      - pattern: ejs.render(req.body.$PARAM, ...)
+      - pattern: ejs.render(req.query.$PARAM, ...)
+      - pattern: nunjucks.renderString(req.body.$PARAM, ...)
+      - pattern: nunjucks.renderString(req.query.$PARAM, ...)
+      - pattern: Handlebars.compile(req.body.$PARAM)
+      - pattern: Handlebars.compile(req.query.$PARAM)
+
+  # ──────────────────────────────────────────────
+  # 6. Password Hashing - MD5/SHA1/SHA256 for passwords
+  # ──────────────────────────────────────────────
+
+  # Python hashlib for passwords
+  - id: web-security-python-weak-password-hash
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Weak hash function (MD5/SHA1/SHA256) used for password hashing.
+      These algorithms are fast and vulnerable to brute-force and rainbow
+      table attacks. Use bcrypt, argon2, or scrypt for password hashing,
+      which include built-in salting and configurable work factors.
+      Example: import bcrypt; bcrypt.hashpw(password.encode(), bcrypt.gensalt()).
+    metadata:
+      category: security
+      owasp: "A02:2021 - Cryptographic Failures"
+      cwe: "CWE-916: Use of Password Hash With Insufficient Computational Effort"
+      confidence: HIGH
+    pattern-either:
+      - pattern: hashlib.md5($PASSWORD)
+      - pattern: hashlib.md5($PASSWORD.encode())
+      - pattern: hashlib.md5($PASSWORD.encode(...))
+      - pattern: hashlib.sha1($PASSWORD)
+      - pattern: hashlib.sha1($PASSWORD.encode())
+      - pattern: hashlib.sha1($PASSWORD.encode(...))
+      - pattern: hashlib.sha256($PASSWORD)
+      - pattern: hashlib.sha256($PASSWORD.encode())
+      - pattern: hashlib.sha256($PASSWORD.encode(...))
+      - pattern: hashlib.new("md5", $PASSWORD)
+      - pattern: hashlib.new("sha1", $PASSWORD)
+      - pattern: hashlib.new("sha256", $PASSWORD)
+
+  # Node.js crypto for passwords
+  - id: web-security-node-weak-password-hash
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Weak hash function (MD5/SHA1/SHA256) used for password hashing.
+      crypto.createHash() with these algorithms is fast and vulnerable to
+      brute-force attacks. Use bcrypt, argon2, or scrypt for password hashing.
+      Example: const bcrypt = require('bcrypt');
+      await bcrypt.hash(password, 12).
+    metadata:
+      category: security
+      owasp: "A02:2021 - Cryptographic Failures"
+      cwe: "CWE-916: Use of Password Hash With Insufficient Computational Effort"
+      confidence: HIGH
+    pattern-either:
+      - pattern: crypto.createHash('md5').update($PASSWORD)
+      - pattern: crypto.createHash('sha1').update($PASSWORD)
+      - pattern: crypto.createHash('sha256').update($PASSWORD)
+      - pattern: crypto.createHash("md5").update($PASSWORD)
+      - pattern: crypto.createHash("sha1").update($PASSWORD)
+      - pattern: crypto.createHash("sha256").update($PASSWORD)
+
+  # Java MessageDigest for passwords
+  - id: web-security-java-weak-password-hash
+    languages: [java]
+    severity: ERROR
+    message: >-
+      Weak hash function (MD5/SHA-1/SHA-256) used for password hashing via
+      MessageDigest. These algorithms are fast and unsuitable for password
+      storage. Use BCrypt, SCrypt, or PBKDF2 with a high iteration count.
+      Example: BCrypt.hashpw(password, BCrypt.gensalt(12)) or
+      SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").
+    metadata:
+      category: security
+      owasp: "A02:2021 - Cryptographic Failures"
+      cwe: "CWE-916: Use of Password Hash With Insufficient Computational Effort"
+      confidence: HIGH
+    pattern-either:
+      - pattern: MessageDigest.getInstance("MD5")
+      - pattern: MessageDigest.getInstance("SHA-1")
+      - pattern: MessageDigest.getInstance("SHA-256")
+      - pattern: MessageDigest.getInstance("SHA1")
+
+  # Go weak password hashing
+  - id: web-security-go-weak-password-hash
+    languages: [go]
+    severity: ERROR
+    message: >-
+      Weak hash function (MD5/SHA1/SHA256) used for password hashing.
+      These algorithms are unsuitable for password storage. Use
+      golang.org/x/crypto/bcrypt or golang.org/x/crypto/argon2 for password
+      hashing. Example: bcrypt.GenerateFromPassword([]byte(password),
+      bcrypt.DefaultCost).
+    metadata:
+      category: security
+      owasp: "A02:2021 - Cryptographic Failures"
+      cwe: "CWE-916: Use of Password Hash With Insufficient Computational Effort"
+      confidence: HIGH
+    pattern-either:
+      - pattern: md5.Sum($PASSWORD)
+      - pattern: md5.New()
+      - pattern: sha1.Sum($PASSWORD)
+      - pattern: sha1.New()
+      - pattern: sha256.Sum256($PASSWORD)
+      - pattern: sha256.New()
