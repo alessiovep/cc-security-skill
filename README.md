@@ -127,9 +127,9 @@ The security-fix skill provides automated fix patterns for 25+ vulnerability typ
 
 | Format | Command | Use case |
 |--------|---------|----------|
-| **Inline Markdown** | Built-in | Quick overview in terminal |
+| **HTML** (default) | `generate_report.py` / `generate_fix_report.py` | Visual report, opened in browser |
 | **JSON** (v2.0) | `run_security_audit.py` | Machine-readable, input for fix skill |
-| **HTML** | `generate_report.py` | Shareable visual report |
+| **Terminal summary** | Built-in | Concise severity/fix overview |
 | **SARIF** (v2.1.0) | `generate_sarif.py` | GitHub Code Scanning integration |
 | **Delta** | `generate_sarif.py --baseline` | PR reviews (NEW/FIXED/EXISTING) |
 
@@ -173,7 +173,8 @@ cc-security-skill/
     ├── scripts/
     │   ├── apply_dependency_fixes.py
     │   ├── apply_config_fix.py
-    │   └── create_remediation_pr.py
+    │   ├── create_remediation_pr.py
+    │   └── generate_fix_report.py
     └── assets/
         ├── pr-template.md
         └── commit-message-template.txt

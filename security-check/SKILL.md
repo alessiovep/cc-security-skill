@@ -179,17 +179,33 @@ Combineer alle findings in een uniform format. Gebruik deze severity-normalisati
 3. Trivy dependency findings -> altijd A06 (Vulnerable Components)
 4. Fallback: pattern-match op check_id + message
 
-## Stap 6: Rapport presenteren
+## Stap 6: Rapport genereren en openen
 
-Presenteer het rapport inline in dit format:
+### 6a: JSON rapport genereren
+
+Genereer altijd een JSON rapport. Bij gebruik van het volledige script:
+```bash
+python <skill_path>/scripts/run_security_audit.py <target_path> ./security_reports
+```
+Dit produceert een JSON rapport met het v2.0 schema (zie references/tool-output-schemas.md) in `./security_reports/`.
+
+Bij alleen Claude-native analyse: schrijf het JSON rapport handmatig naar `./security_reports/security_audit_<datum>.json` volgens het v2.0 schema.
+
+### 6b: HTML rapport genereren en openen
+
+Genereer een visueel HTML rapport en open het in de browser:
+```bash
+python <skill_path>/scripts/generate_report.py <json_rapport_pad> ./security_reports/security_audit.html
+open ./security_reports/security_audit.html
+```
+
+### 6c: Terminal samenvatting
+
+Toon een beknopte samenvatting in de terminal (niet de volledige bevindingen lijst):
 
 ```
-## Security Audit Rapport
+## Security Audit Samenvatting
 
-**Target**: <pad>
-**Datum**: <datum>
-
-### Samenvatting
 | Severity | Aantal |
 |----------|--------|
 | CRITICAL | X      |
@@ -198,27 +214,9 @@ Presenteer het rapport inline in dit format:
 | LOW      | X      |
 | **Totaal** | **X** |
 
-### Bevindingen per OWASP categorie
+Volledig rapport: `./security_reports/security_audit.html`
 
-#### A03:2021 - Injection (X findings)
-1. **[HIGH]** SQL injection in `app/models.py:45`
-   - Tool: Semgrep
-   - Beschrijving: User input direct in SQL query
-   - Fix hint: Gebruik parameterized queries
-
-(etc. per categorie)
-```
-
-### JSON rapport (optioneel)
-Als de gebruiker een bestand wil, gebruik het script:
-```bash
-python <skill_path>/scripts/run_security_audit.py <target_path>
-```
-Dit produceert een JSON rapport met het v2.0 schema (zie references/tool-output-schemas.md).
-
-### HTML rapport (optioneel)
-```bash
-python <skill_path>/scripts/generate_report.py <json_rapport_pad>
+Gebruik `/security-fix` om gevonden kwetsbaarheden automatisch te fixen.
 ```
 
 ### SARIF rapport (voor CI/CD integratie)

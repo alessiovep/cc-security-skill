@@ -692,7 +692,7 @@ boolean isValid = encoder.matches(password, hash);
 
 **Belangrijk**: Lees altijd de omringende code voor context. Toon de voorgestelde wijziging aan de gebruiker voor bevestiging bij niet-triviale changes.
 
-## Stap 6: Verificatie
+## Stap 6: Verificatie en rapportage
 
 Na het toepassen van fixes:
 
@@ -708,10 +708,53 @@ semgrep --config=auto --json --severity=ERROR <target_path>
 trivy fs --format json --scanners vuln <target_path>
 ```
 
-3. **Resultaat rapporteren**:
-   - Hoeveel findings gefixt
-   - Hoeveel findings resterend
-   - Welke findings menselijke review vereisen
+3. **Fix-resultaten JSON schrijven**:
+Schrijf de resultaten naar `./security_reports/security_fix_<datum>.json` met dit schema:
+```json
+{
+  "version": "1.0",
+  "fix_date": "ISO8601",
+  "target": "/pad",
+  "source_audit": "pad/naar/audit.json",
+  "results": [
+    {
+      "id": "finding-001",
+      "status": "fixed|skipped|manual_review",
+      "severity": "HIGH",
+      "type": "check_id",
+      "file": "pad",
+      "line": 45,
+      "message": "originele beschrijving",
+      "fix_type": "auto|manual|dependency",
+      "action_taken": "wat er gedaan is"
+    }
+  ],
+  "summary": {
+    "total_processed": 10,
+    "fixed": 7,
+    "skipped": 1,
+    "manual_review": 2
+  }
+}
+```
+
+4. **HTML rapport genereren en openen**:
+```bash
+python <skill_path>/scripts/generate_fix_report.py ./security_reports/security_fix_<datum>.json ./security_reports/security_fix.html
+open ./security_reports/security_fix.html
+```
+
+5. **Terminal samenvatting**:
+Toon een beknopte samenvatting:
+```
+## Security Fix Samenvatting
+
+- Gefixt: X bevindingen
+- Resterend: Y bevindingen
+- Handmatige review: Z bevindingen
+
+Volledig rapport: `./security_reports/security_fix.html`
+```
 
 ## Stap 7: PR creatie (optioneel)
 
