@@ -1,6 +1,6 @@
 ---
 name: security-check
-description: Voer geautomatiseerde security checks uit op codebases. Scant broncode, configuraties en dependencies op kwetsbaarheden met Semgrep, Trivy en Gitleaks. Categoriseert findings per OWASP Top 10 met genormaliseerde severity levels. Gebruik bij security scans, PR reviews, of compliance checks.
+description: Security audit en vulnerability scan skill (SAST/SCA). Voert geautomatiseerde security checks en code reviews uit op codebases. Scant broncode, configuraties en dependencies op kwetsbaarheden met Semgrep, Trivy en Gitleaks. Categoriseert findings per OWASP Top 10 met genormaliseerde severity levels. Gebruik bij security scans, PR reviews, of compliance checks.
 ---
 
 # Security Check
@@ -148,12 +148,12 @@ Grep: \{@html                    -- Svelte XSS vector
 Bij React/Next.js/Supabase projecten, voeg deze extra Grep patronen toe:
 
 ```
-Grep: dangerouslySetInnerHTML       -- React unsafe HTML injection
-Grep: href.*javascript:             -- JavaScript protocol in JSX links
-Grep: service_role                  -- Supabase service_role key exposure
+Grep: dangerouslySetInner        -- React unsafe HTML injection
+Grep: href.*javascript:          -- JavaScript protocol in JSX links
+Grep: service_role               -- Supabase service_role key exposure
 Grep: NEXT_PUBLIC_.*SERVICE\|NEXT_PUBLIC_.*SECRET\|NEXT_PUBLIC_.*KEY.*service  -- Secrets in publieke env vars
-Grep: \.rpc\(                       -- Supabase RPC calls (controleer input validatie)
-Grep: auth\.admin                   -- Supabase admin auth (moet server-side zijn)
+Grep: \.rpc\(                    -- Supabase RPC calls (controleer input validatie)
+Grep: auth\.admin                -- Supabase admin auth (moet server-side zijn)
 Grep: \.from\(.*\)\.\(insert\|update\|delete\|upsert\)  -- Supabase mutaties (controleer RLS)
 Grep: createClient.*supabase.*['"]ey  -- Hardcoded Supabase keys
 ```
@@ -187,7 +187,7 @@ Genereer altijd een JSON rapport. Bij gebruik van het volledige script:
 ```bash
 python <skill_path>/scripts/run_security_audit.py <target_path> ./security_reports
 ```
-Dit produceert een JSON rapport met het v2.0 schema (zie references/tool-output-schemas.md) in `./security_reports/`.
+Dit produceert een JSON rapport met het v2.0 schema (zie `references/tool-output-schemas.md`) in `./security_reports/`.
 
 Bij alleen Claude-native analyse: schrijf het JSON rapport handmatig naar `./security_reports/security_audit_<datum>.json` volgens het v2.0 schema.
 
@@ -250,81 +250,8 @@ Na het rapport, stel voor:
 - **Bij dependency issues**: "Er zijn X kwetsbare dependencies. Ik kan `npm audit fix` / `pip-audit --fix` draaien."
 - **Bij secrets**: "Er zijn hardcoded secrets gevonden. Deze moeten handmatig verwijderd en geroteerd worden."
 
-## JSON Contract (v2.0)
-
-Het audit rapport dat de remediation skill consumeert:
-
-```json
-{
-  "version": "2.0",
-  "scan_date": "ISO8601",
-  "target": "/pad",
-  "vulnerabilities": [
-    {
-      "id": "finding-001",
-      "tool": "Semgrep|Trivy|Gitleaks",
-      "type": "check_id of categorie",
-      "severity": "CRITICAL|HIGH|MEDIUM|LOW",
-      "file": "pad/naar/bestand",
-      "line": 45,
-      "message": "beschrijving",
-      "cwe": "CWE-79",
-      "owasp_category": "A0X:2021 - Naam",
-      "fix_type": "auto|manual|dependency",
-      "fix_hint": "hoe te fixen"
-    }
-  ],
-  "summary": {
-    "total_vulnerabilities": 0,
-    "critical": 0,
-    "high": 0,
-    "medium": 0,
-    "low": 0
-  }
-}
-```
-
 ## Custom Semgrep Rules
 
-Beschikbare regelsets in `assets/semgrep_rules/` (**137 regels totaal over 8 bestanden**):
-
-### Taalspecifieke regels
-- `python_rules.yaml` (8 regels) - SQL injection, eval/exec, unsafe YAML, weak random, hardcoded keys, CSRF, open redirect, insecure cookies
-- `javascript_rules.yaml` (8 regels) - XSS, command injection, prototype pollution, path traversal
-- `java_rules.yaml` (20 regels) - SQL injection, XXE, insecure deserialization, weak crypto, insecure random
-- `go_rules.yaml` (19 regels) - SQL injection, command injection, insecure TLS, SSRF, weak crypto
-
-### Framework-specifieke regels
-- `react_nextjs_rules.yaml` (11 regels) - React unsafe HTML rendering, JavaScript URLs, target blank, NEXT_PUBLIC secrets, Supabase service_role/RLS/RPC
-- `framework_rules.yaml` (19 regels) - Express.js (helmet, CORS, body-parser, session), Django (csrf_exempt, ALLOWED_HOSTS, DEBUG, mark_safe), Flask (SSTI, send_file, debug), Dockerfile (root user, piped installs, secrets, latest tag), GitHub Actions (expression injection, pull_request_target, permissions)
-
-### Web Security en API regels
-- `web_security_rules.yaml` (28 regels) - Security headers, JWT security (algorithm confusion, missing expiry), file upload validatie, mass assignment, SSTI, password hashing, rate limiting, race conditions
-- `client_api_rules.yaml` (24 regels) - postMessage origin validatie, localStorage sensitive data, WebSocket security, GraphQL introspection/depth, verbose error responses, OAuth state validatie, Angular/Vue/Svelte XSS vectors, ReDoS patronen
-
-### Alle gedekte kwetsbaarheidscategorieen
-
-| Categorie | Regels | OWASP |
-|-----------|--------|-------|
-| SQL/NoSQL Injection | 15+ | A03:2021 |
-| XSS (DOM, stored, reflected, framework) | 12+ | A03:2021 |
-| Command Injection | 5+ | A03:2021 |
-| SSTI (Server-Side Template Injection) | 4 | A03:2021 |
-| Security Headers (CSP, HSTS, X-Frame) | 6 | A05:2021 |
-| JWT Security | 5 | A07:2021 |
-| File Upload Validatie | 4 | A04:2021 |
-| Mass Assignment | 3 | A01:2021 |
-| Password Hashing | 4 | A02:2021 |
-| GraphQL Security | 3 | A05:2021 |
-| Client-side (postMessage, WebSocket) | 5 | A01:2021 |
-| OAuth/Auth | 4 | A07:2021 |
-| Weak Crypto | 8+ | A02:2021 |
-| Insecure Deserialization | 3+ | A08:2021 |
-| SSRF | 3+ | A10:2021 |
-| Path Traversal | 3+ | A01:2021 |
-| Rate Limiting | 2 | A07:2021 |
-| ReDoS | 2 | A03:2021 |
-| Secrets/Hardcoded Keys | 5+ | A02:2021 |
-| Misconfiguration (DEBUG, CORS, TLS) | 10+ | A05:2021 |
+137 regels over 8 bestanden in `assets/semgrep_rules/`. Dekken: SQL/NoSQL injection, XSS, command injection, SSTI, security headers, JWT, file upload, mass assignment, password hashing, GraphQL, client-side security, OAuth, weak crypto, insecure deserialization, SSRF, path traversal, rate limiting, ReDoS, secrets, en misconfiguratie.
 
 Gebruik met: `semgrep --config=<skill_path>/assets/semgrep_rules/ <target_path>`

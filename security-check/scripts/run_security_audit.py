@@ -127,7 +127,7 @@ class SecurityAuditor:
             result = subprocess.run(
                 cmd, capture_output=True, text=True, timeout=300
             )
-            if result.returncode == 0:
+            if result.returncode in (0, 1):  # 1 = vulnerabilities found
                 return json.loads(result.stdout)
             else:
                 print(f"[!] Trivy error: {result.stderr}")

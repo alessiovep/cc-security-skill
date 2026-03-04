@@ -3,6 +3,7 @@
 Generate formatted HTML security fix reports from JSON fix results.
 """
 
+import html
 import json
 import sys
 from pathlib import Path
@@ -353,49 +354,55 @@ def generate_result_item_html(item: Dict) -> str:
     status = item.get('status', 'skipped')
     severity = item.get('severity', 'MEDIUM').lower()
 
-    html = f'''
+    item_type = html.escape(str(item.get('type', 'Onbekend')))
+    item_sev = html.escape(str(item.get('severity', 'MEDIUM')))
+
+    out = f'''
     <div class="result-item {status}">
         <div class="item-header">
-            <div class="item-title">{item.get('type', 'Onbekend')}</div>
+            <div class="item-title">{item_type}</div>
             <div class="item-badges">
-                <span class="badge severity-{severity}">{item.get('severity', 'MEDIUM')}</span>'''
+                <span class="badge severity-{severity}">{item_sev}</span>'''
 
     status_label, status_css = STATUS_LABELS.get(status, ("Onbekend", "status-skipped"))
-    html += f'''
+    out += f'''
                 <span class="badge {status_css}">{status_label}</span>'''
 
     fix_type = item.get('fix_type', '')
     if fix_type in FIX_TYPE_LABELS:
         label, css_class = FIX_TYPE_LABELS[fix_type]
-        html += f'''
+        out += f'''
                 <span class="badge {css_class}">{label}</span>'''
 
-    html += '''
+    item_file = html.escape(str(item.get('file', 'onbekend')))
+    item_msg = html.escape(str(item.get('message', 'Geen beschrijving beschikbaar')))
+
+    out += '''
             </div>
         </div>
         <div class="item-details">'''
 
-    html += f'''
-            <div>Locatie: <span class="item-location">{item.get('file', 'onbekend')}</span>'''
+    out += f'''
+            <div>Locatie: <span class="item-location">{item_file}</span>'''
 
     if item.get('line', 0) > 0:
-        html += f' (Regel {item.get("line")})'
+        out += f' (Regel {item.get("line")})'
 
-    html += '</div>'
+    out += '</div>'
 
-    html += f'''
-            <div>{item.get('message', 'Geen beschrijving beschikbaar')}</div>'''
+    out += f'''
+            <div>{item_msg}</div>'''
 
     action = item.get('action_taken', '')
     if action:
-        html += f'''
-            <div class="action-taken"><strong>Actie:</strong> {action}</div>'''
+        out += f'''
+            <div class="action-taken"><strong>Actie:</strong> {html.escape(str(action))}</div>'''
 
-    html += '''
+    out += '''
         </div>
     </div>'''
 
-    return html
+    return out
 
 
 def generate_fix_report(json_fix_path: str, output_path: str = None):

@@ -3,6 +3,7 @@
 Generate formatted HTML security audit reports from JSON scan results.
 """
 
+import html
 import json
 import re
 import sys
@@ -396,59 +397,67 @@ def generate_vulnerability_html(vuln: Dict) -> str:
     """Generate HTML for a single vulnerability."""
     severity = vuln.get('severity', 'MEDIUM').lower()
 
-    html = f'''
+    vuln_type = html.escape(str(vuln.get('type', 'Unknown Issue')))
+    vuln_sev = html.escape(str(vuln.get('severity', 'MEDIUM')))
+    vuln_tool = html.escape(str(vuln.get('tool', 'Unknown')))
+
+    out = f'''
     <div class="vulnerability {severity}">
         <div class="vuln-header">
-            <div class="vuln-title">{vuln.get('type', 'Unknown Issue')}</div>
+            <div class="vuln-title">{vuln_type}</div>
             <div class="vuln-badges">
-                <span class="badge severity-{severity}">{vuln.get('severity', 'MEDIUM')}</span>
-                <span class="badge tool">{vuln.get('tool', 'Unknown')}</span>'''
+                <span class="badge severity-{severity}">{vuln_sev}</span>
+                <span class="badge tool">{vuln_tool}</span>'''
 
     fix_type = vuln.get('fix_type', '')
     if fix_type in FIX_TYPE_LABELS:
         label, css_class = FIX_TYPE_LABELS[fix_type]
-        html += f'''
+        out += f'''
                 <span class="badge {css_class}">{label}</span>'''
 
-    html += '''
+    vuln_file = html.escape(str(vuln.get('file', 'unknown')))
+    vuln_msg = html.escape(str(vuln.get('message', 'Geen beschrijving beschikbaar')))
+    vuln_owasp = html.escape(str(vuln.get('owasp_category', 'Uncategorized')))
+
+    out += '''
             </div>
         </div>
         <div class="vuln-details">'''
 
-    html += f'''
-            <div>Locatie: <span class="vuln-location">{vuln.get('file', 'unknown')}</span>'''
+    out += f'''
+            <div>Locatie: <span class="vuln-location">{vuln_file}</span>'''
 
     if vuln.get('line', 0) > 0:
-        html += f' (Regel {vuln.get("line")})'
+        out += f' (Regel {vuln.get("line")})'
 
-    html += '</div>'
+    out += '</div>'
 
-    html += f'''
-            <div>{vuln.get('message', 'Geen beschrijving beschikbaar')}</div>'''
+    out += f'''
+            <div>{vuln_msg}</div>'''
 
     cwe_html = _format_cwe_links(vuln.get('cwe'))
     if cwe_html:
-        html += f'''
+        out += f'''
             <div>CWE: {cwe_html}</div>'''
 
     cve_html = _format_cve_links(vuln.get('cve'))
     if cve_html:
-        html += f'''
+        out += f'''
             <div>CVE: {cve_html}</div>'''
 
-    html += f'''
-            <div class="owasp-category">{vuln.get('owasp_category', 'Uncategorized')}</div>'''
+    out += f'''
+            <div class="owasp-category">{vuln_owasp}</div>'''
 
     fix_hint = vuln.get('fix_hint', '')
     if fix_hint:
-        html += f'''
-            <div class="fix-hint"><strong>Fix suggestie:</strong> {fix_hint}</div>'''
+        out += f'''
+            <div class="fix-hint"><strong>Fix suggestie:</strong> {html.escape(str(fix_hint))}</div>'''
 
-    html += '''
+    out += '''
         </div>
     </div>'''
 
-    return html
+    return out
 
 
 def generate_html_report(json_report_path: str, output_path: str = None):

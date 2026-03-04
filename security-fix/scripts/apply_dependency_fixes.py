@@ -18,6 +18,17 @@ class DependencyFixer:
         self.dry_run = dry_run
         self.results = []
 
+    def _has_poetry_config(self) -> bool:
+        """Check if pyproject.toml contains a [tool.poetry] section."""
+        pyproject = self.project_path / "pyproject.toml"
+        if not pyproject.exists():
+            return False
+        try:
+            content = pyproject.read_text()
+            return "[tool.poetry]" in content
+        except OSError:
+            return False
+
     def detect_ecosystem(self) -> List[str]:
         """Detect which package managers are in use."""
         ecosystems = []
@@ -31,7 +42,7 @@ class DependencyFixer:
             ecosystems.append("npm")
 
         # Python ecosystem - check specific tools first
-        if (self.project_path / "poetry.lock").exists() or (self.project_path / "pyproject.toml").exists():
+        if (self.project_path / "poetry.lock").exists() or self._has_poetry_config():
             ecosystems.append("poetry")
         elif (self.project_path / "Pipfile").exists():
             ecosystems.append("pipenv")
