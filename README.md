@@ -18,6 +18,28 @@ cp -r cc-security-skill/security-check ~/.claude/skills/
 cp -r cc-security-skill/security-fix ~/.claude/skills/
 ```
 
+## Updating
+
+Skills are copied to `~/.claude/skills/`, so after pulling new changes you need to re-copy:
+
+```bash
+cd cc-security-skill
+git pull
+
+# Re-copy both skills
+cp -r security-check ~/.claude/skills/
+cp -r security-fix ~/.claude/skills/
+```
+
+Or use `rsync` to only sync changed files (recommended):
+
+```bash
+rsync -av --delete --exclude='.DS_Store' --exclude='security_reports' security-check/ ~/.claude/skills/security-check/
+rsync -av --delete --exclude='.DS_Store' security-fix/ ~/.claude/skills/security-fix/
+```
+
+> **Note:** Changes take effect in new Claude Code sessions. No restart required for already running sessions — just start a new conversation.
+
 ## Prerequisites
 
 | Tool | Purpose | Installation |
@@ -175,6 +197,8 @@ cc-security-skill/
     │   ├── apply_config_fix.py
     │   ├── create_remediation_pr.py
     │   └── generate_fix_report.py
+    ├── references/
+    │   └── fix-patterns.md
     └── assets/
         ├── pr-template.md
         └── commit-message-template.txt
